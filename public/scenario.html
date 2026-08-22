@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simulation · 6G Fabric Console</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <a class="wordmark" href="index.html"><span class="glyph">⬡</span> 6G Fabric <span class="sub">Console</span></a>
+  <nav class="nav">
+    <a href="index.html">Overview</a>
+    <a href="dashboard.html">Ledger</a>
+    <a href="explorer.html">Explorer</a>
+    <a href="test.html">Benchmark</a>
+    <a href="scenario.html" aria-current="page">Simulation</a>
+  </nav>
+  <div class="health"><span class="dot" id="healthDot"></span><span id="healthText">Checking</span></div>
+</header>
+
+<main class="shell">
+
+  <div class="page-head">
+    <div class="eyebrow">Deployment simulation</div>
+    <h1>Place a network across ten square kilometres</h1>
+    <p>Each of the eight organizations becomes a macro cell at a random position. Small cells and users
+       در همان ناحیه پراکنده‌اند و به سریع‌ترین مرکز واجد شرایط ارجاع می‌شوند — سازمان آن مرکز
+       organization then signs their transactions on chain.</p>
+  </div>
+
+  <!-- ── Controls ─────────────────────────────────────────── -->
+  <section class="panel">
+    <div class="panel-title">Deployment <span class="tag">parameters</span></div>
+    <div class="grid cols-4">
+      <div class="field">
+        <label for="iotCount">Small cells</label>
+        <input type="number" id="iotCount" value="20" min="0" max="500">
+        <span class="hint">IoT transmitters, 0–500</span>
+      </div>
+      <div class="field">
+        <label for="userCount">Users</label>
+        <input type="number" id="userCount" value="20" min="0" max="500">
+        <span class="hint">Receivers, 0–500</span>
+      </div>
+      <div class="field">
+        <label for="seed">Seed</label>
+        <input type="number" id="seed" placeholder="random">
+        <span class="hint">Set a number to reproduce a layout</span>
+      </div>
+      <div class="field">
+        <label for="concurrency">Parallel submits</label>
+        <input type="number" id="concurrency" value="6" min="1" max="16">
+        <span class="hint">In-flight transactions, 1–16</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-title">Channels and contracts <span class="tag">what gets written</span></div>
+
+    <div style="display:flex;gap:22px;flex-wrap:wrap;margin-bottom:16px">
+      <label class="check"><input type="checkbox" id="selAll"> Select every channel</label>
+      <label class="check"><input type="checkbox" id="connectToggle" checked> Attach users and small cells on connectivitychannel</label>
+    </div>
+
+    <div id="channelList" class="grid cols-2" style="gap:10px">
+      <div class="working"><span class="spinner"></span> Loading channels…</div>
+    </div>
+
+    <p class="note" style="margin-top:16px">
+      Greyed-out contracts cannot be written to: they either expose no write function, or they read an
+      چیدمان مراکز که باید از قبل بذرکاری شده باشد. Hold <code>Ctrl</code> to pick more than one contract in a channel.
+    </p>
+  </section>
+
+  <div style="display:flex;gap:14px;align-items:center;margin-bottom:26px;flex-wrap:wrap">
+    <button id="runBtn" class="btn primary lg">Run simulation</button>
+    <div id="working" class="working" style="display:none"><span class="spinner"></span> Placing nodes, attaching devices, writing to the ledger…</div>
+  </div>
+
+  <!-- ── Results ──────────────────────────────────────────── -->
+  <div id="results" style="display:none">
+
+    <p class="note info" id="runInfo" style="margin-bottom:18px"></p>
+
+    <div class="readouts">
+      <div class="readout accent-trace"><div class="k">Throughput</div><div class="v" id="rTps">—<span class="u">tps</span></div></div>
+      <div class="readout accent-ok"><div class="k">Committed</div><div class="v" id="rOk">—</div></div>
+      <div class="readout accent-signal"><div class="k">Mean latency</div><div class="v" id="rLat">—<span class="u">ms</span></div></div>
+      <div class="readout accent-rx"><div class="k">Transactions</div><div class="v" id="rTotal">—</div></div>
+      <div class="readout"><div class="k">Elapsed</div><div class="v" id="rDur">—<span class="u">s</span></div></div>
+      <div class="readout"><div class="k">Seed</div><div class="v" id="rSeed">—</div></div>
+    </div>
+
+    <section class="panel">
+      <div class="panel-title">Coverage map <span class="tag">shaded areas are serving cells</span></div>
+      <div class="map-layout">
+        <div class="map-stage" id="mapStage">
+          <canvas></canvas>
+          <svg xmlns="http://www.w3.org/2000/svg"></svg>
+        </div>
+        <div>
+          <div class="legend">
+            <h4>Symbols</h4>
+            <ul>
+              <li><span class="marker">▲</span> Macro transmitter</li>
+              <li><span class="marker">●</span> Small-cell transmitter</li>
+              <li><span class="marker">▫</span> Receiver</li>
+              <li><span class="marker">—</span> Receiver uplink</li>
+              <li><span class="marker">┄</span> Small-cell backhaul</li>
+            </ul>
+          </div>
+          <div class="legend">
+            <h4>Serving cells</h4>
+            <ul id="legendOrgs"></ul>
+          </div>
+          <div class="legend">
+            <h4>Reading it</h4>
+            <p style="font-size:11.5px;line-height:1.6;color:var(--ink-faint)">
+              Shading marks the area closest to each macro transmitter. Anything inside a shaded region
+              is served by that organization. Hover a node for its identifier and distance.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title">Cells <span class="tag">devices attached per organization</span></div>
+      <div class="table-wrap"><table id="covTable"></table></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title">Write results <span class="tag">by channel and by stage</span></div>
+      <div class="table-wrap"><table id="chTable"></table></div>
+      <div id="failBox" style="margin-top:14px"></div>
+    </section>
+
+  </div>
+</main>
+
+<script src="catchment-map.js"></script>
+<script src="scenario-app.js"></script>
+</body>
+</html>

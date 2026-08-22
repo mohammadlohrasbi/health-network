@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>6G Fabric Console</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <a class="wordmark" href="index.html"><span class="glyph">⬡</span> 6G Fabric <span class="sub">Console</span></a>
+  <nav class="nav">
+    <a href="index.html" aria-current="page">Overview</a>
+    <a href="dashboard.html">Ledger</a>
+    <a href="explorer.html">Explorer</a>
+    <a href="test.html">Benchmark</a>
+    <a href="scenario.html">Simulation</a>
+  </nav>
+  <div class="health"><span class="dot" id="healthDot"></span><span id="healthText">Checking</span></div>
+</header>
+
+<main class="shell">
+
+  <section class="hero">
+    <div>
+      <div class="eyebrow">Permissioned ledger for cellular infrastructure</div>
+      <h1>Eight operators.<br>One <em>shared record</em><br>of the air interface.</h1>
+      <p>هر سازمان یک دامنه اعتماد روی شبکه Hyperledger Fabric است. ارجاع بیمار،
+         device attachments and signal measurements are written to channels that all operators can
+         verify but none can rewrite.</p>
+      <div class="hero-stats">
+        <div class="hero-stat"><div class="n" id="statOrgs">—</div><div class="l">Organizations</div></div>
+        <div class="hero-stat"><div class="n" id="statChannels">—</div><div class="l">Channels</div></div>
+        <div class="hero-stat"><div class="n">86</div><div class="l">Smart contracts</div></div>
+        <div class="hero-stat"><div class="n">10 × 10</div><div class="l">km deployment</div></div>
+      </div>
+    </div>
+
+    <div class="hero-map" id="heroStage">
+      <canvas></canvas>
+      <svg xmlns="http://www.w3.org/2000/svg"></svg>
+      <div class="empty-state" id="heroEmpty">
+        <div style="font-size:26px;opacity:.5">⬡</div>
+        <div>No deployment on record yet.<br>Run a simulation to place the network.</div>
+        <a class="btn small" href="scenario.html">Open Simulation</a>
+      </div>
+    </div>
+  </section>
+
+  <div class="eyebrow">Workspaces</div>
+  <div class="cards">
+
+    <a class="card" href="dashboard.html" style="--accent:var(--trace)">
+      <div class="idx">Ledger</div>
+      <h3>Browse the chain</h3>
+      <p>Pick an organization and a channel, then read the records its peers hold —
+         device attachments, bandwidth grants and signal readings, straight from world state.</p>
+      <div class="go">Open →</div>
+    </a>
+
+    <a class="card" href="explorer.html" style="--accent:var(--ok)">
+      <div class="idx">Explorer</div>
+      <h3>Walk the blocks</h3>
+      <p>Open any channel and read its chain block by block — who signed each transaction,
+         which contract it called, and whether the commit was accepted or rejected.</p>
+      <div class="go">Open →</div>
+    </a>
+
+    <a class="card" href="test.html" style="--accent:var(--signal)">
+      <div class="idx">Benchmark</div>
+      <h3>Measure throughput</h3>
+      <p>Drive load through Caliper or Tape and read back transactions per second,
+         end-to-end latency and the share of transactions that committed.</p>
+      <div class="go">Open →</div>
+    </a>
+
+    <a class="card" href="scenario.html" style="--accent:var(--rx)">
+      <div class="idx">Simulation</div>
+      <h3>Place the network</h3>
+      <p>Scatter macro cells, small cells and users across ten square kilometres,
+         هر بیمار را به سریع‌ترین مرکز واجد شرایط ارجاع می‌دهد و نتیجه را روی زنجیره ثبت می‌کند.</p>
+      <div class="go">Open →</div>
+    </a>
+
+  </div>
+
+  <div class="panel" style="margin-top:26px">
+    <div class="panel-title">Last deployment <span class="tag" id="lastTag">none</span></div>
+    <div class="readouts" style="margin-bottom:0">
+      <div class="readout accent-trace"><div class="k">Macro TX</div><div class="v" id="sumMacro">—</div></div>
+      <div class="readout accent-signal"><div class="k">Small-cell TX</div><div class="v" id="sumIot">—</div></div>
+      <div class="readout accent-rx"><div class="k">Receivers</div><div class="v" id="sumUsers">—</div></div>
+      <div class="readout accent-ok"><div class="k">Committed</div><div class="v" id="sumOk">—</div></div>
+      <div class="readout"><div class="k">Throughput</div><div class="v" id="sumTps">—<span class="u">tps</span></div></div>
+    </div>
+  </div>
+
+</main>
+
+<script src="catchment-map.js"></script>
+<script src="home.js"></script>
+</body>
+</html>

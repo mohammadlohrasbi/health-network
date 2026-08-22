@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ledger · 6G Fabric Console</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <a class="wordmark" href="index.html"><span class="glyph">⬡</span> 6G Fabric <span class="sub">Console</span></a>
+  <nav class="nav">
+    <a href="index.html">Overview</a>
+    <a href="dashboard.html" aria-current="page">Ledger</a>
+    <a href="explorer.html">Explorer</a>
+    <a href="test.html">Benchmark</a>
+    <a href="scenario.html">Simulation</a>
+  </nav>
+  <div class="health"><span class="dot" id="healthDot"></span><span id="healthText">Checking</span></div>
+</header>
+
+  <main class="layout">
+    <aside class="sidebar">
+      <div class="field">
+        <label for="orgSelect">Organization</label>
+        <select id="orgSelect"></select>
+      </div>
+      <div class="field">
+        <label for="channelSelect">Channel</label>
+        <select id="channelSelect"></select>
+      </div>
+      <button class="btn primary" id="loadBtn">Load Assets</button>
+
+      <div class="network-summary">
+        <div>Organizations: <span id="orgCount">–</span></div>
+        <div>Channels: <span id="channelCount">–</span></div>
+        <div>Orderer: <span id="ordererInfo">–</span></div>
+      </div>
+    </aside>
+
+    <section class="content">
+      <div class="toolbar">
+        <h2 id="contentTitle">Assets</h2>
+        <button class="btn primary" id="createBtn">Create Asset</button>
+      </div>
+
+      <div class="map-panel">
+        <div id="network-map"></div>
+      </div>
+
+      <div class="table-wrapper">
+        <table id="assetsTable">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Record</th>
+              <th>Timestamp</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="assetsBody">
+            <tr>
+              <td colspan="4" class="empty">Select an org and channel, then load assets.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="log-panel">
+        <h3>Activity Log</h3>
+        <div id="logOutput"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Create / Edit Modal -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal">
+      <h3 id="modalTitle">Create Asset</h3>
+      <form id="assetForm">
+        <div class="field">
+          <label for="fieldId">ID</label>
+          <input type="text" id="fieldId" required />
+        </div>
+        <div class="field">
+          <label for="fieldOwner">Owner</label>
+          <input type="text" id="fieldOwner" placeholder="optional" />
+        </div>
+        <div class="field">
+          <label for="fieldValue">Value</label>
+          <input type="number" id="fieldValue" placeholder="optional" />
+        </div>
+        <div class="field">
+          <label for="fieldSize">Size</label>
+          <input type="number" id="fieldSize" placeholder="optional" />
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn" id="cancelBtn">Cancel</button>
+          <button type="submit" class="btn primary" id="saveBtn">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Transfer Modal -->
+  <div class="modal-overlay" id="transferOverlay">
+    <div class="modal">
+      <h3>Transfer Asset</h3>
+      <form id="transferForm">
+        <div class="field">
+          <label for="transferId">Asset ID</label>
+          <input type="text" id="transferId" disabled />
+        </div>
+        <div class="field">
+          <label for="transferNewOwner">New Owner</label>
+          <input type="text" id="transferNewOwner" required />
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn" id="transferCancelBtn">Cancel</button>
+          <button type="submit" class="btn primary">Transfer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- History Modal -->
+  <div class="modal-overlay" id="historyOverlay">
+    <div class="modal">
+      <h3 id="historyTitle">Asset History</h3>
+      <div id="historyContent" class="history-content">
+        <p class="empty">Loading...</p>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn" id="historyCloseBtn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

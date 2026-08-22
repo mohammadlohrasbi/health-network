@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Benchmark · 6G Fabric Console</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <a class="wordmark" href="index.html"><span class="glyph">⬡</span> 6G Fabric <span class="sub">Console</span></a>
+  <nav class="nav">
+    <a href="index.html">Overview</a>
+    <a href="dashboard.html">Ledger</a>
+    <a href="explorer.html">Explorer</a>
+    <a href="test.html" aria-current="page">Benchmark</a>
+    <a href="scenario.html">Simulation</a>
+  </nav>
+  <div class="health"><span class="dot" id="healthDot"></span><span id="healthText">Checking</span></div>
+</header>
+
+<main class="shell">
+
+  <div class="page-head">
+    <div class="eyebrow">Throughput and latency</div>
+    <h1>Measure what the ledger can carry</h1>
+    <p>Pick how much of the network to put under load — one contract, one channel, a set of
+       channels, or all twenty — then choose the tool that drives it. Tape talks gRPC straight to
+       the peers and reports the ceiling of the endorse–order–commit path. Caliper drives the same
+       path through the SDK gateway and holds a fixed send rate, so its latency figures are
+       comparable across runs.</p>
+  </div>
+
+  <!-- ═══ 1. Scope — what to put under load ═══ -->
+  <section class="panel">
+    <div class="panel-title">Scope <span class="tag">what to put under load</span></div>
+
+    <div class="scope-modes" id="scopeModes">
+      <button class="scope-mode is-on" data-mode="contract">
+        <span class="m-name">One contract</span>
+        <span class="m-sub">A single write function</span>
+      </button>
+      <button class="scope-mode" data-mode="channel">
+        <span class="m-name">One channel</span>
+        <span class="m-sub">Every contract on it</span>
+      </button>
+      <button class="scope-mode" data-mode="channels">
+        <span class="m-name">Several channels</span>
+        <span class="m-sub">Pick the ones you want</span>
+      </button>
+      <button class="scope-mode" data-mode="targets">
+        <span class="m-name">Hand-picked</span>
+        <span class="m-sub">Choose contracts one by one</span>
+      </button>
+      <button class="scope-mode" data-mode="all">
+        <span class="m-name">Whole network</span>
+        <span class="m-sub">All twenty channels</span>
+      </button>
+    </div>
+
+    <!-- one contract -->
+    <div class="scope-body" data-for="contract">
+      <div class="grid cols-2">
+        <div class="field">
+          <label for="oneChannel">Channel</label>
+          <select id="oneChannel"></select>
+          <span class="hint">Must already be deployed</span>
+        </div>
+        <div class="field">
+          <label for="oneContract">Contract</label>
+          <select id="oneContract"></select>
+          <span class="hint" id="oneContractHint">&nbsp;</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- one channel -->
+    <div class="scope-body" data-for="channel" hidden>
+      <div class="grid cols-2">
+        <div class="field">
+          <label for="chanOnly">Channel</label>
+          <select id="chanOnly"></select>
+          <span class="hint">Every runnable contract on this channel is measured in turn</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- several channels -->
+    <div class="scope-body" data-for="channels" hidden>
+      <div class="picker-head">
+        <span class="picker-label">Channels</span>
+        <div class="picker-actions">
+          <button class="btn small" data-pick="channels-all">Select all</button>
+          <button class="btn small" data-pick="channels-none">Clear</button>
+        </div>
+      </div>
+      <div class="pick-grid" id="channelPicker"></div>
+    </div>
+
+    <!-- hand-picked targets -->
+    <div class="scope-body" data-for="targets" hidden>
+      <div class="picker-head">
+        <span class="picker-label">Contracts</span>
+        <div class="picker-actions">
+          <input type="text" id="targetFilter" placeholder="Filter by name…" class="filter-input">
+          <button class="btn small" data-pick="targets-none">Clear</button>
+        </div>
+      </div>
+      <div class="pick-grid tall" id="targetPicker"></div>
+    </div>
+
+    <!-- whole network -->
+    <div class="scope-body" data-for="all" hidden>
+      <p class="note info" style="margin:0">
+        Every contract on every channel, measured one after another. Expect this to run for a
+        while — the estimate below is calculated from your rate and transaction count.
+      </p>
+    </div>
+
+    <div class="scope-extras">
+      <label class="check">
+        <input type="checkbox" id="includeSeedDep">
+        <span>شامل قراردادهایی که به چیدمان بذرکاری‌شده مراکز نیاز دارند</span>
+      </label>
+      <label class="check">
+        <input type="checkbox" id="includeReadOnly">
+        <span>Include read-only contracts</span>
+      </label>
+      <label class="check">
+        <input type="checkbox" id="includeMarket">
+        <span>Add market operations — trading alongside the network writes</span>
+      </label>
+      <label class="check">
+        <input type="checkbox" id="marketOnly">
+        <span>Market operations only</span>
+      </label>
+    </div>
+
+    <div class="scope-summary" id="scopeSummary">
+      <span class="s-figure" id="scopeCount">—</span>
+      <span class="s-label">targets selected</span>
+      <span class="s-sep">·</span>
+      <span class="s-figure" id="scopeRuns">—</span>
+      <span class="s-label">runs</span>
+      <span class="s-sep">·</span>
+      <span class="s-figure" id="scopeTime">—</span>
+      <span class="s-label">estimated</span>
+    </div>
+    <p class="note info" id="scopeNote" hidden style="margin-top:10px"></p>
+  </section>
+
+  <!-- ═══ 2. Tool — two separate sections ═══ -->
+  <div class="tool-tabs" role="tablist">
+    <button class="tool-tab is-on" data-tool="tape" role="tab" aria-selected="true">
+      <span class="t-name">Tape</span>
+      <span class="t-sub">Raw gRPC load generator</span>
+    </button>
+    <button class="tool-tab" data-tool="caliper" role="tab" aria-selected="false">
+      <span class="t-name">Caliper</span>
+      <span class="t-sub">Hyperledger benchmark framework</span>
+    </button>
+  </div>
+
+  <!-- ── Tape ── -->
+  <section class="panel tool-pane" data-tool="tape">
+    <div class="panel-title">Tape settings <span class="tag">endorse · order · commit</span></div>
+    <p class="pane-lede">
+      Tape signs proposals itself and pushes them at the peers over plain gRPC. It reports the
+      highest rate the path will sustain, so use it to find a ceiling rather than to hold a
+      service level.
+    </p>
+
+    <div class="grid cols-3">
+      <div class="field">
+        <label for="tapeOrg">Submitting organization</label>
+        <select id="tapeOrg"></select>
+        <span class="hint">Identity that signs the proposals</span>
+      </div>
+      <div class="field">
+        <label for="tapePolicy">Endorsement policy</label>
+        <select id="tapePolicy">
+          <option value="any" selected>Matches the deployment — 1 of 8</option>
+          <option value="majority">Stricter hypothetical — 5 of 8</option>
+        </select>
+        <span class="hint" id="tapePolicyHint">The chaincode commits on one signature</span>
+      </div>
+      <div class="field">
+        <label for="tapeEndorsers">Organizations asked to endorse</label>
+        <select id="tapeEndorsers">
+          <option value="1" selected>1 — org1 only</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+          <option value="5">5</option>
+          <option value="8">All eight</option>
+        </select>
+        <span class="hint">Must reach the policy threshold above</span>
+      </div>
+      <div class="field">
+        <label for="tapeTx">Transactions per target</label>
+        <input type="number" id="tapeTx" value="1000" min="10" max="200000" step="10">
+        <span class="hint">Under 500 the figure is dominated by startup</span>
+      </div>
+      <div class="field">
+        <label for="tapeRate">Rate cap</label>
+        <input type="number" id="tapeRate" value="0" min="0" max="5000">
+        <span class="hint">Transactions per second — 0 sends flat out</span>
+      </div>
+      <div class="field">
+        <label for="tapeBurst">Burst</label>
+        <input type="number" id="tapeBurst" value="0" min="0" max="10000">
+        <span class="hint">In-flight transactions — 0 uses the tape default</span>
+      </div>
+      <div class="field">
+        <label for="tapeConns">gRPC connections</label>
+        <input type="number" id="tapeConns" value="8" min="1" max="64">
+        <span class="hint">Parallel connections per endorser</span>
+      </div>
+      <div class="field">
+        <label for="tapeClients">Clients per connection</label>
+        <input type="number" id="tapeClients" value="10" min="1" max="64">
+        <span class="hint">Multiplies the offered load</span>
+      </div>
+      <div class="field">
+        <label for="tapeRepeat">Repeats</label>
+        <input type="number" id="tapeRepeat" value="1" min="1" max="10">
+        <span class="hint">Passes over the whole selection, for variance</span>
+      </div>
+      <div class="field">
+        <label for="tapeConcurrency">Targets at once</label>
+        <input type="number" id="tapeConcurrency" value="1" min="1" max="32">
+        <span class="hint">1 measures each in isolation; more puts channels under load together</span>
+      </div>
+      <div class="field">
+        <label for="tapeTimeout">Give up after</label>
+        <input type="number" id="tapeTimeout" value="300" min="30" max="3600">
+        <span class="hint">Seconds per target before the tool is killed</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Caliper ── -->
+  <section class="panel tool-pane" data-tool="caliper" hidden>
+    <div class="panel-title">Caliper settings <span class="tag">fixed send rate</span></div>
+    <p class="pane-lede">
+      Caliper holds the rate you set and reports latency alongside throughput, which is what you
+      want when comparing configurations rather than hunting for a maximum. It starts a worker
+      process per lane, so allow about half a minute of startup per target.
+    </p>
+
+    <div class="grid cols-3">
+      <div class="field">
+        <label for="calOrg">Submitting organization</label>
+        <select id="calOrg"></select>
+        <span class="hint">Identity that signs the proposals</span>
+      </div>
+      <div class="field">
+        <label for="calRate">Send rate</label>
+        <input type="number" id="calRate" value="20" min="1" max="5000">
+        <span class="hint">Transactions per second, held constant</span>
+      </div>
+      <div class="field">
+        <label for="calTx">Transactions per target</label>
+        <input type="number" id="calTx" value="500" min="10" max="200000" step="10">
+        <span class="hint">At 20 tps this is 25 seconds of load</span>
+      </div>
+      <div class="field">
+        <label for="calWorkers">Workers</label>
+        <input type="number" id="calWorkers" value="2" min="1" max="16">
+        <span class="hint">Each is a separate process — 2 suits a 4 GB host</span>
+      </div>
+      <div class="field">
+        <label for="calRepeat">Repeats</label>
+        <input type="number" id="calRepeat" value="1" min="1" max="10">
+        <span class="hint">Passes over the whole selection, for variance</span>
+      </div>
+      <div class="field">
+        <label for="calReadRate">Read-back rate</label>
+        <input type="number" id="calReadRate" value="50" min="1" max="5000">
+        <span class="hint">Only used when the read round is on</span>
+      </div>
+      <div class="field">
+        <label for="calConcurrency">Targets at once</label>
+        <input type="number" id="calConcurrency" value="1" min="1" max="16">
+        <span class="hint">Each target starts its own workers — 2 or 3 suits a 4 GB host</span>
+      </div>
+      <div class="field">
+        <label for="calTimeout">Give up after</label>
+        <input type="number" id="calTimeout" value="600" min="60" max="3600">
+        <span class="hint">Seconds per target before the tool is killed</span>
+      </div>
+    </div>
+
+    <label class="check" style="margin-top:16px">
+      <input type="checkbox" id="calReadPhase">
+      <span>Add a read round after each write round, querying the keys just written</span>
+    </label>
+  </section>
+
+  <!-- ═══ 3. Run ═══ -->
+  <div class="run-bar">
+    <button id="runBtn" class="btn primary lg">Start benchmark</button>
+    <button id="cancelBtn" class="btn" hidden>Stop after this target</button>
+    <div id="runStatus" class="run-status" hidden>
+      <span class="spinner"></span>
+      <span id="runStatusText">Starting…</span>
+    </div>
+  </div>
+
+  <p class="note err" id="runError" hidden></p>
+
+  <!-- ═══ 4. Results ═══ -->
+  <div id="results" hidden>
+
+    <div class="readouts">
+      <div class="readout accent-trace"><div class="k">Mean throughput</div><div class="v" id="mTps">—<span class="u">tps</span></div></div>
+      <div class="readout accent-signal" hidden><div class="k">Network aggregate</div><div class="v" id="mAggregate">—<span class="u">tps</span></div></div>
+      <div class="readout accent-signal"><div class="k">Mean latency</div><div class="v" id="mLat">—<span class="u">ms</span></div></div>
+      <div class="readout accent-ok"><div class="k">Committed</div><div class="v" id="mOk">—</div></div>
+      <div class="readout accent-rx"><div class="k">Rejected</div><div class="v" id="mBad">—</div></div>
+    </div>
+
+    <!-- The matrix is the point of this page: one cell per target, filling
+         in as the sweep advances, so a slow channel is visible at a glance
+         instead of buried in a table. -->
+    <section class="panel">
+      <div class="panel-title">
+        Coverage matrix
+        <span class="tag">throughput per target</span>
+        <span class="matrix-legend">
+          <i class="sw sw-wait"></i> waiting
+          <i class="sw sw-run"></i> running
+          <i class="sw sw-ok"></i> committed
+          <i class="sw sw-bad"></i> failed
+        </span>
+      </div>
+      <div id="matrix" class="matrix"></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title">Throughput by target <span class="tag">sorted, fastest first</span></div>
+      <!-- The canvas needs a parent with a fixed height. Chart.js sizes a
+           responsive canvas to its container, so without one the canvas and
+           the container grow off each other on every update. -->
+      <div class="chart-wrap"><canvas id="chart"></canvas></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title">
+        Per-target results
+        <span class="tag" id="resultCount">0 rows</span>
+        <a class="btn small" id="csvLink" href="#" style="margin-left:auto">Download CSV</a>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Channel</th><th>Contract</th><th>Function</th><th>Pass</th>
+              <th>Throughput</th><th>Duration</th><th>Blocks</th><th>Avg block</th>
+              <th>Mean latency</th><th>Committed</th><th>Rejected</th><th>Result</th>
+            </tr>
+          </thead>
+          <tbody id="resultRows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" id="outputPanel" hidden>
+      <div class="panel-title">Tool output <span class="tag" id="outputFor">—</span></div>
+      <pre class="output" id="output"></pre>
+    </section>
+
+  </div>
+
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+<script src="test-app.js"></script>
+</body>
+</html>

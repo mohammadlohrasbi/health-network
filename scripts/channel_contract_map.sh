@@ -146,3 +146,48 @@ declare -A ORG_ROLE=(
   [org7MSP]="بیمارستان‌های خصوصی و درمانگاه‌ها (OU به ازای هر مرکز)"
   [org8MSP]="آزمایشگاه، داروخانه، تصویربرداری، انتقال خون (OU به ازای هر مرکز)"
 )
+
+# ── نام‌های قدیمی پروژه 6G ─────────────────────────────────
+# نام کانال‌ها بین دو پروژه عوض شده، ولی دستورهای قدیمی در
+# یادداشت‌ها و تاریخچه شل باقی می‌مانند و مدام کپی می‌شوند.
+# به‌جای اینکه هر بار متوقف شود، نام قدیمی به معادل سلامتش
+# ترجمه می‌شود و یک هشدار صریح چاپ می‌شود.
+#
+# معادل‌ها بر پایه **نقش** انتخاب شده‌اند نه شباهت نام:
+# datachannel در 6G کانال پرچم‌دار قراردادهای مکانی بود؛ معادلش
+# admissionchannel است که هر هفت قراردادش selector است.
+declare -A LEGACY_CHANNEL=(
+  [datachannel]=admissionchannel        # کانال پرچم‌دار selector
+  [networkchannel]=analyticschannel
+  [resourcechannel]=bedchannel          # تخصیص منابع کمیاب
+  [performancechannel]=analyticschannel
+  [iotchannel]=equipmentchannel         # دستگاه‌های متصل
+  [authchannel]=consentchannel
+  [accesschannel]=consentchannel
+  [connectivitychannel]=referralchannel # برقراری پیوند بین دو طرف
+  [sessionchannel]=admissionchannel
+  [policychannel]=compliancechannel
+  [securitychannel]=auditchannel
+  [monitoringchannel]=analyticschannel
+  [managementchannel]=staffchannel
+  [optimizationchannel]=analyticschannel
+  [faultchannel]=compliancechannel      # گزارش رخداد
+  [trafficchannel]=analyticschannel
+  [integrationchannel]=referralchannel
+)
+
+# resolve_channel <نام> → نام معتبر روی stdout، یا خالی اگر ناشناخته.
+# پیام ترجمه به stderr می‌رود تا در جایگزینی فرمان قاطی نشود.
+resolve_channel() {
+  local want="$1" ch
+  for ch in "${CHANNELS[@]}"; do
+    [ "$ch" = "$want" ] && { printf '%s' "$want"; return 0; }
+  done
+  local mapped="${LEGACY_CHANNEL[$want]:-}"
+  if [ -n "$mapped" ]; then
+    echo "  ! «$want» نام پروژه 6G است — «$mapped» استفاده شد" >&2
+    printf '%s' "$mapped"
+    return 0
+  fi
+  return 1
+}

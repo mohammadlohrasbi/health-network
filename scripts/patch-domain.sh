@@ -396,11 +396,30 @@ const before = s;
 // ۱) glob تولید قراردادها → اسکریپت واحد سلامت
 s = s.replace(
   /echo "    \\\$ for f in generateChaincodes_part\*\.sh; do bash \\"\\\$f\\"; done"/,
-  'echo "    \\$ bash generateChaincodes_hospital.sh"');
+  'echo "    \\$ node gen-hospital-contracts.js && bash generateChaincodes_hospital.sh"');
 s = s.replace(
-  /for f in generateChaincodes_part\*\.sh; do\n\s*bash "\$f"[^\n]*\n\s*done/,
-  'bash generateChaincodes_hospital.sh \\\n'
-  + '        || die "generateChaincodes_hospital.sh شکست خورد — جداگانه اجرا کنید تا خطای کامپایل دیده شود"');
+  /echo "    \\\$ bash generateChaincodes_hospital\.sh"/,
+  'echo "    \\$ node gen-hospital-contracts.js && bash generateChaincodes_hospital.sh"');
+// دو حالت: یا هنوز glob 6G هست، یا از اجرای قبلی همین پچ فقط
+// `bash generateChaincodes_hospital.sh` مانده. هر دو باید به
+// نسخه‌ای برسند که **اول مولد را اجرا می‌کند**.
+const GEN_BLOCK =
+  '# اسکریپت تولید، خودش تولیدشده است. اول از مولد بازش می‌سازیم تا\n'
+  + '    # نسخه commit شده هرگز از مولد عقب نماند — دقیقاً همان چیزی که\n'
+  + '    # باعث شد قراردادها یک بار دیگر در مسیر قدیمی ساخته شوند.\n'
+  + '    node gen-hospital-contracts.js >/dev/null \\\n'
+  + '        || die "gen-hospital-contracts.js شکست خورد"\n'
+  + '    bash generateChaincodes_hospital.sh \\\n'
+  + '        || die "generateChaincodes_hospital.sh شکست خورد — جداگانه اجرا کنید تا خطای کامپایل دیده شود"';
+
+if (!s.includes('node gen-hospital-contracts.js >/dev/null \\\n        || die')) {
+  s = s.replace(
+    /for f in generateChaincodes_part\*\.sh; do\n\s*bash "\$f"[^\n]*\n\s*done/,
+    GEN_BLOCK);
+  s = s.replace(
+    /    bash generateChaincodes_hospital\.sh \\\n        \|\| die "generateChaincodes_hospital\.sh شکست خورد[^"]*"/,
+    '    ' + GEN_BLOCK);
+}
 
 // ۲) شمارش قراردادها.
 // 🔴 مسیر هم غلط بود: bootstrap در گام ۹۵ `cd "$SCRIPTS"` می‌کند،
@@ -430,7 +449,7 @@ s = s.replace(/# هر ۲۰ کانال \(طولانی\)/,
 s = s.replace(/راه‌اندازی شبکه 6G از صفر/g, 'راه‌اندازی شبکه ملی سلامت از صفر');
 
 if (s === before) {
-  console.error('  هشدار: هیچ الگویی در bootstrap-secure.sh تطبیق نیافت');
+  console.log('  bootstrap-secure.sh از قبل به‌روز است');
 } else {
   fs.writeFileSync(p, s);
   console.log('  bootstrap-secure.sh به‌روز شد');
@@ -497,8 +516,14 @@ s = s.replace(
         warn "مصرف اوج هنگام کامپایل Go قراردادهاست، نه اجرای peer ها —"
         warn "پس اگر گام ۴/۷ گذشت، بقیه معمولاً می‌گذرد."
     fi`);
-if (s === before) console.error('  هشدار: پیام حافظه تطبیق نیافت');
-else { fs.writeFileSync(p, s); console.log('  پیام حافظه اصلاح شد'); }
+if (s === before) {
+  // اجرای دوباره: از قبل اعمال شده. سکوت، نه هشدار — هشدار
+  // تکراری در log واقعی سرور نویز می‌سازد و توجه را از خطای
+  // واقعی برمی‌دارد.
+  console.log(s.includes('کمترین پیکربندی همین است')
+    ? '  پیام حافظه از قبل اصلاح شده'
+    : '  هشدار: پیام حافظه تطبیق نیافت');
+} else { fs.writeFileSync(p, s); console.log('  پیام حافظه اصلاح شد'); }
 NODEEOF
   bash -n "$ROOT_DIR/scripts/bootstrap-secure.sh" || { echo "  ✗ نحو bootstrap شکست"; exit 1; }
 fi
@@ -645,10 +670,28 @@ NODEEOF
   bash -n "$ROOT_DIR/scripts/deploy_functions.sh" || { echo "  ✗ نحو deploy_functions شکست"; exit 1; }
 fi
 
-# ── ۱۸. همخوانی مسیر chaincode بین همه اجزا ────────────
-# مولد، deploy-staged.sh، network.sh و bootstrap باید همه یک مسیر
-# را بگویند. ناهمخوانی این چهار، باگی ساخت که تا لحظه نصب پنهان ماند.
-log "دور یازدهم: همخوانی مسیر chaincode"
+# ── ۱۸. بازتولید فایل‌های تولیدشده ─────────────────────
+# 🔴 log پنجم: بررسی «مسیر chaincode در همه اجزا یکی است» درست
+# شکست خورد — ولی من قدم بعدی را نگذاشته بودم.
+#
+# `generateChaincodes_hospital.sh` یک **فایل تولیدشده** است، نه
+# فایل دست‌نویس. وقتی `gen-hospital-contracts.js` عوض می‌شود
+# (مثلاً مسیر CC_DIR)، تا وقتی مولد دوباره اجرا نشود، اسکریپت
+# تولیدی نسخه قدیمی می‌ماند — و چون در مخزن commit شده، با
+# `git pull` هم نسخه قدیمی می‌آید.
+#
+# نتیجه روی سرور: مولد جدید بود، اسکریپت تولیدی قدیمی، و
+# قراردادها دوباره در مسیر اشتباه ساخته شدند.
+#
+# قاعده: هر فایل تولیدشده باید در همین پچ **بازتولید** شود، نه
+# اینکه به نسخه commit شده اعتماد شود.
+log "دور یازدهم: بازتولید فایل‌های تولیدشده"
+
+if [ "$DRY_RUN" != "1" ]; then
+  ( cd "$ROOT_DIR/scripts" && node gen-hospital-contracts.js ) \
+    || { echo "  ✗ بازتولید قراردادها شکست خورد" >&2; exit 1; }
+  echo "  generateChaincodes_hospital.sh، hospital-signatures.json و contract-fn-map.js بازتولید شدند"
+fi
 
 # ── تأیید ───────────────────────────────────────────────
 if [ "$DRY_RUN" = "1" ]; then
@@ -722,6 +765,20 @@ check "bootstrap کانال نامعتبر را پیش از پاک‌سازی م
 # 🔴 این بررسی کل کلاس را می‌گیرد: هر جزئی که مسیر chaincode را
 # می‌داند باید همان مسیر را بگوید. ناهمخوانی مولد و زیرساخت تا
 # لحظه `peer lifecycle chaincode package` پنهان می‌ماند.
+# 🔴 کل کلاس: هر فایل تولیدشده باید با مولدش همگام باشد. اگر
+# مولد را عوض کنید و بازتولید نکنید، فایل commit شده بی‌صدا
+# نسخه قدیمی می‌ماند. این بررسی مولد را در پوشه موقت اجرا می‌کند
+# و خروجی را با فایل موجود مقایسه می‌کند.
+# ⚠️ در زیرپوسته `( ... )` — نه `exit` برهنه. `check` دستور را با
+# eval اجرا می‌کند، پس یک `exit` بی‌محافظ کل patch-domain.sh را
+# می‌بندد و بررسی‌های بعدی هرگز اجرا نمی‌شوند (با کد خروج ۰،
+# یعنی بی‌صدا موفق به نظر می‌رسد).
+check "فایل‌های تولیدشده با مولدشان همگام‌اند" \
+      "( cd '$ROOT_DIR/scripts' && T=\$(mktemp -d) \
+         && cp generateChaincodes_hospital.sh \"\$T/old\" \
+         && node gen-hospital-contracts.js >/dev/null \
+         && cmp -s \"\$T/old\" generateChaincodes_hospital.sh \
+         && rm -rf \"\$T\" )"
 check "مسیر chaincode در همه اجزا یکی است" \
       "cd '$ROOT_DIR' && [ \"\$(grep -hoE 'CHAINCODE_DIR=\"[^\"]+\"|CC_DIR=\"\\\$\\{CC_DIR:-[^}]+\\}\"' \
          scripts/deploy-staged.sh scripts/network.sh scripts/generateChaincodes_hospital.sh \

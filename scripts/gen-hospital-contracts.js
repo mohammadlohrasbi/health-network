@@ -1045,31 +1045,49 @@ if ! go build -o /dev/null . ; then
   exit 1
 fi
 
-log "توزیع go.sum به بقیه قراردادها"
+log "توزیع go.mod و go.sum به بقیه قراردادها"
+# 🔴 درسی که اجرای بعدی داد: توزیع **فقط go.sum** کافی نیست.
+# \`go mod tidy\` خودِ go.mod را هم بازنویسی می‌کند و بلوک
+# \`require\` با وابستگی‌های غیرمستقیم پر می‌شود. پوشه‌های دیگر
+# go.mod حداقلی داشتند، پس build می‌گفت:
+#   go: updates to go.mod needed; to update it: go mod tidy
+#
+# پس هر دو فایل توزیع می‌شوند. تنها تفاوت مجاز خط \`module\`
+# است که باید نام خود قرارداد را داشته باشد.
 SUM="\$FIRST/go.sum"
+MOD="\$FIRST/go.mod"
 COPIED=0
 for d in "\$CC_DIR"/*/; do
   [ -d "\$d" ] || continue
   [ "\${d%/}" = "\$FIRST" ] && continue
+  MODNAME=\$(basename "\${d%/}" | tr '[:upper:]' '[:lower:]')
   cp "\$SUM" "\${d}go.sum"
+  sed "1s|^module .*|module \$MODNAME|" "\$MOD" > "\${d}go.mod"
   COPIED=\$((COPIED+1))
 done
-log "go.sum در \$COPIED پوشه دیگر قرار گرفت"
+log "go.mod و go.sum در \$COPIED پوشه دیگر قرار گرفت"
 
-# تأیید: هر پوشه باید go.mod و go.sum داشته باشد. بدون این
-# بررسی، یک کپی ناموفق تا لحظه بسته‌بندی پنهان می‌ماند.
+# تأیید: هر پوشه باید هر دو فایل را داشته باشد و خط module
+# باید نام خودش باشد — نه نام قرارداد اهداکننده.
 MISSING=0
 for d in "\$CC_DIR"/*/; do
   [ -d "\$d" ] || continue
+  NAME=\$(basename "\${d%/}")
+  MODNAME=\$(echo "\$NAME" | tr '[:upper:]' '[:lower:]')
   { [ -f "\${d}go.mod" ] && [ -f "\${d}go.sum" ]; } || {
-    log "خطا: \$(basename "\$d") فایل ماژول کامل ندارد"
+    log "خطا: \$NAME فایل ماژول کامل ندارد"
+    MISSING=\$((MISSING+1))
+    continue
+  }
+  head -1 "\${d}go.mod" | grep -q "^module \$MODNAME\$" || {
+    log "خطا: \$NAME خط module اشتباه دارد: \$(head -1 "\${d}go.mod")"
     MISSING=\$((MISSING+1))
   }
 done
 [ "\$MISSING" -eq 0 ] || exit 1
 
-# کامپایل آخرین قرارداد هم — اگر توزیع go.sum کار نکرده باشد،
-# اینجا معلوم می‌شود نه در گام استقرار.
+# کامپایل آخرین قرارداد هم — اگر توزیع کار نکرده باشد، اینجا
+# معلوم می‌شود نه در گام استقرار.
 LAST=\$(find "\$CC_DIR" -mindepth 1 -maxdepth 1 -type d | sort | tail -1)
 log "کامپایل \$(basename "\$LAST") برای تأیید توزیع"
 cd "\$LAST"

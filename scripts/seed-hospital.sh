@@ -38,19 +38,17 @@ source "$SCRIPT_DIR/channel_contract_map.sh"
 # اسکریپت با exit 1 راه‌اندازی را می‌خواباند در حالی که کانال
 # واقعی درست بذرکاری شده بود.
 if [ "$#" -gt 0 ] && [ "$1" != "all" ]; then
-  REQUESTED=("$@")
-  for want in "${REQUESTED[@]}"; do
-    found=0
-    for ch in "${CHANNELS[@]}"; do
-      [ "$ch" = "$want" ] && found=1 && break
-    done
-    if [ "$found" = "0" ]; then
+  RESOLVED=()
+  for want in "$@"; do
+    if got="$(resolve_channel "$want")"; then
+      case " ${RESOLVED[*]:-} " in *" $got "*) ;; *) RESOLVED+=("$got");; esac
+    else
       echo "خطا: کانال ناشناخته '$want'. کانال‌های موجود:" >&2
       printf '  %s\n' "${CHANNELS[@]}" >&2
       exit 1
     fi
   done
-  CHANNELS=("${REQUESTED[@]}")
+  CHANNELS=("${RESOLVED[@]}")
 fi
 source "$SCRIPT_DIR/deploy_functions.sh" 2>/dev/null || true
 

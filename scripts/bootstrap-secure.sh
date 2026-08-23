@@ -64,18 +64,16 @@ ok "اسکریپت‌ها"
 # پیش از هر کار مخرب. نام کانال از channel_contract_map.sh خوانده
 # می‌شود که همان منبعی است که deploy-staged.sh هم می‌خواند.
 if [ "$CHANNELS" != "all" ]; then
-    # shellcheck source=/dev/null
     WANTED="$CHANNELS"
+    # shellcheck source=/dev/null
     source "$SCRIPTS/channel_contract_map.sh"
-    CHANNELS_ALL=("${CHANNELS[@]}")
-    CHANNELS="$WANTED"
+    RESOLVED=""
     BAD=""
-    for want in $CHANNELS; do
-        found=0
-        for have in "${CHANNELS_ALL[@]:-${CHANNELS[@]}}"; do
-            [ "$have" = "$want" ] && found=1 && break
-        done
-        [ "$found" = "0" ] && BAD="$BAD $want"
+    for want in $WANTED; do
+        got="$(resolve_channel "$want")" || { BAD="$BAD $want"; continue; }
+        # تکراری نشود: datachannel و sessionchannel هر دو به
+        # admissionchannel ترجمه می‌شوند.
+        case " $RESOLVED " in *" $got "*) ;; *) RESOLVED="$RESOLVED $got";; esac
     done
     if [ -n "$BAD" ]; then
         echo
@@ -83,13 +81,13 @@ if [ "$CHANNELS" != "all" ]; then
         warn "هیچ کاری انجام نشد — شبکه فعلی دست‌نخورده است."
         echo
         echo "  کانال‌های موجود:"
-        source "$SCRIPTS/channel_contract_map.sh"
         printf '    %s\n' "${CHANNELS[@]}"
         echo
         echo "  پیشنهاد برای اولین اجرا:"
         echo "    CHANNELS=\"admissionchannel auditchannel\" ./bootstrap-secure.sh"
         exit 1
     fi
+    CHANNELS="${RESOLVED# }"
     ok "کانال‌ها معتبرند: $CHANNELS"
 fi
 for t in docker go node openssl; do

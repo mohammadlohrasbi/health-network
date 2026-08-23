@@ -1009,18 +1009,72 @@ ${chaincodeGo(c)}HOSPEOF
 }
 
 out += `
-# ── کامپایل ──
-# همه قراردادها یک shared.go دارند، پس اگر یکی کامپایل شود بقیه هم
-# می‌شوند. اولی را کامل می‌سازیم و بقیه را فقط vet می‌کنیم.
-log "کامپایل قرارداد اول برای اعتبارسنجی"
-FIRST=\$(ls "\$CC_DIR" | head -1)
-cd "\$CC_DIR/\$FIRST"
-if ! go mod tidy >/dev/null 2>&1; then
-  log "خطا: go mod tidy در \$FIRST شکست خورد"
+# ── حل وابستگی و کامپایل ──
+#
+# 🔴 درسی که فقط اجرای واقعی داد:
+# «همه قراردادها یک shared.go دارند، پس اگر یکی کامپایل شود بقیه
+# هم می‌شوند» برای **صحت کد** درست است — ولی هر پوشه ماژول Go
+# مستقل خودش است و \`go build\` بدون \`go.sum\` در همان پوشه رد
+# می‌کند:
+#
+#   missing go.sum entry for module providing package
+#   github.com/hyperledger/fabric-contract-api-go/contractapi
+#
+# نسخه قبلی فقط اولی را tidy می‌کرد، پس ۱۰۹ پوشه دیگر go.sum
+# نداشتند و در گام بسته‌بندی شکست می‌خوردند — بعد از اینکه شبکه
+# کامل ساخته شده بود.
+#
+# راه‌حل: یک بار tidy، بعد همان go.sum به همه کپی شود. چون هر
+# ۱۱۰ قرارداد **دقیقاً یک import** دارند، go.sum هر سه یکی است.
+log "حل وابستگی‌ها (یک بار برای همه)"
+FIRST=\$(find "\$CC_DIR" -mindepth 1 -maxdepth 1 -type d | sort | head -1)
+cd "\$FIRST"
+if ! go mod tidy; then
+  log "خطا: go mod tidy در \$(basename "\$FIRST") شکست خورد"
+  log "  بررسی کنید: دسترسی شبکه به proxy.golang.org و sum.golang.org"
   exit 1
 fi
+if [ ! -f go.sum ]; then
+  log "خطا: go mod tidy موفق بود ولی go.sum نساخت"
+  exit 1
+fi
+
+log "کامپایل \$(basename "\$FIRST") برای اعتبارسنجی"
 if ! go build -o /dev/null . ; then
-  log "خطا: کامپایل \$FIRST شکست خورد — استقرار متوقف شد"
+  log "خطا: کامپایل شکست خورد — استقرار متوقف شد"
+  exit 1
+fi
+
+log "توزیع go.sum به بقیه قراردادها"
+SUM="\$FIRST/go.sum"
+COPIED=0
+for d in "\$CC_DIR"/*/; do
+  [ -d "\$d" ] || continue
+  [ "\${d%/}" = "\$FIRST" ] && continue
+  cp "\$SUM" "\${d}go.sum"
+  COPIED=\$((COPIED+1))
+done
+log "go.sum در \$COPIED پوشه دیگر قرار گرفت"
+
+# تأیید: هر پوشه باید go.mod و go.sum داشته باشد. بدون این
+# بررسی، یک کپی ناموفق تا لحظه بسته‌بندی پنهان می‌ماند.
+MISSING=0
+for d in "\$CC_DIR"/*/; do
+  [ -d "\$d" ] || continue
+  { [ -f "\${d}go.mod" ] && [ -f "\${d}go.sum" ]; } || {
+    log "خطا: \$(basename "\$d") فایل ماژول کامل ندارد"
+    MISSING=\$((MISSING+1))
+  }
+done
+[ "\$MISSING" -eq 0 ] || exit 1
+
+# کامپایل آخرین قرارداد هم — اگر توزیع go.sum کار نکرده باشد،
+# اینجا معلوم می‌شود نه در گام استقرار.
+LAST=\$(find "\$CC_DIR" -mindepth 1 -maxdepth 1 -type d | sort | tail -1)
+log "کامپایل \$(basename "\$LAST") برای تأیید توزیع"
+cd "\$LAST"
+if ! go build -o /dev/null . ; then
+  log "خطا: کامپایل \$(basename "\$LAST") شکست خورد — توزیع go.sum ناقص است"
   exit 1
 fi
 # \${#} تعداد **پارامترهای موقعیتی** اسکریپت است، نه تعداد

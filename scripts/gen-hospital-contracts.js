@@ -1017,7 +1017,14 @@ if ! go build -o /dev/null . ; then
   log "خطا: کامپایل \$FIRST شکست خورد — استقرار متوقف شد"
   exit 1
 fi
-log "کامپایل موفق. \${#} قرارداد آماده استقرار در \$CC_DIR"
+# \${#} تعداد **پارامترهای موقعیتی** اسکریپت است، نه تعداد
+# قراردادها — همیشه صفر. باید پوشه‌های واقعی شمرده شوند.
+GENERATED=\$(find "\$CC_DIR" -mindepth 1 -maxdepth 1 -type d | wc -l)
+log "کامپایل موفق. \$GENERATED قرارداد آماده استقرار در \$CC_DIR"
+if [ "\$GENERATED" -ne ${contracts.size} ]; then
+  log "خطا: \$GENERATED پوشه ساخته شد، انتظار ${contracts.size}"
+  exit 1
+fi
 `;
 
 const target = path.join(__dirname, 'generateChaincodes_hospital.sh');

@@ -220,24 +220,35 @@ cleanup_dev_containers() {
 
 # --------- نصب یک قرارداد که tar آن از قبل ساخته شده ---------
 
-# --------- تضمین وجود go.sum پیش از build ---------
+# --------- تضمین go.mod و go.sum پیش از build ---------
 # هر پوشه قرارداد یک ماژول Go مستقل است. بدون go.sum در همان
 # پوشه، `go build` رد می‌کند:
 #   missing go.sum entry for module providing package ...
+# و بدون go.mod کاملِ tidy شده:
+#   go: updates to go.mod needed; to update it: go mod tidy
 #
 # مولد این را با «یک بار tidy، بعد توزیع» حل می‌کند، ولی اینجا
 # لایه دوم است تا استقرار به سلامت نسخه مولد گره نخورد.
-# اولین tidy کش ماژول را پر می‌کند، پس بقیه تقریباً بی‌هزینه‌اند.
 ensure_go_sum() {
   local dir="$1" name="$2"
   [ -f "$dir/go.sum" ] && return 0
 
   # اگر قرارداد دیگری go.sum دارد، همان را کپی کن — همه دقیقاً
   # یک import دارند، پس go.sum یکی است و این از tidy سریع‌تر است.
-  local donor
+  #
+  # ⚠️ go.mod هم باید بیاید. `go mod tidy` بلوک require را با
+  # وابستگی‌های غیرمستقیم پر می‌کند؛ اگر فقط go.sum کپی شود،
+  # build می‌گوید «updates to go.mod needed». تنها تفاوت مجاز
+  # خط module است.
+  local donor donor_dir modname
   donor=$(find "$CHAINCODE_DIR" -mindepth 2 -maxdepth 2 -name go.sum -print -quit 2>/dev/null)
   if [ -n "$donor" ]; then
-    cp "$donor" "$dir/go.sum" && return 0
+    donor_dir=$(dirname "$donor")
+    modname=$(basename "$dir" | tr "[:upper:]" "[:lower:]")
+    cp "$donor" "$dir/go.sum" || return 1
+    [ -f "$donor_dir/go.mod" ] \
+      && sed "1s|^module .*|module $modname|" "$donor_dir/go.mod" > "$dir/go.mod"
+    return 0
   fi
 
   echo "  [build] $name: go.sum نیست — go mod tidy..."

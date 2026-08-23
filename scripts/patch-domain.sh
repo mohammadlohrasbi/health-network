@@ -407,8 +407,10 @@ s = s.replace(
 // پس `ls chaincode` به scripts/chaincode نگاه می‌کرد که وجود
 // ندارد → همیشه صفر → die، در حالی که هر ۱۱۰ قرارداد در
 // $ROOT_DIR/chaincode درست ساخته و کامپایل شده بودند.
-s = s.replace(/COUNT=\$\(ls chaincode 2>\/dev\/null \| wc -l\)/,
-  'COUNT=$(find "$ROOT_DIR/chaincode" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)');
+// مسیر باید با CHAINCODE_DIR در deploy-staged.sh و network.sh
+// یکی باشد: "$ROOT_DIR/scripts/chaincode". نه ریشه پروژه.
+s = s.replace(/COUNT=\$\((ls chaincode 2>\/dev\/null|find "\$ROOT_DIR\/chaincode"[^)]*) \| wc -l\)/,
+  'COUNT=$(find "$SCRIPTS/chaincode" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)');
 s = s.replace(/\[ "\$COUNT" -eq 86 \] \|\| die "\$COUNT قرارداد تولید شد، انتظار ۸۶"/,
   `[ "$COUNT" -eq ${total} ] || die "$COUNT قرارداد در $ROOT_DIR/chaincode یافت شد، انتظار ${total}"`);
 s = s.replace(/ok "۸۶ قرارداد — و اسکریپت مکانی خودش کامپایل را بررسی کرد"/,
@@ -588,6 +590,66 @@ log "دور نهم: کانال ناشناخته = خطا"
 edit scripts/deploy_functions.sh \
   's#\[ -z "\$contracts" \] && { log "کانال \$ch قراردادی ندارد"; return 0; }#[ -z "$contracts" ] \&\& { log "خطا: کانال $ch در channel_contract_map.sh نیست — نام را بررسی کنید"; return 1; }#'
 
+
+# ── ۱۷. دور دهم: سکوتِ موفق در deploy ──────────────────
+# 🔴 log چهارم: هر ۷ نصب روی admissionchannel شکست خورد
+# («هشدار: نصب X ناموفق — رد شد») ولی تابع در انتها
+# «موفق: کانال admissionchannel کامل deploy شد» گفت و bootstrap
+# ادامه داد. همان الگوی «سکوتِ موفق» که در deploy_functions.sh
+# برای کانال ناشناخته بود.
+#
+# `continue` در حلقه درست است — یک قرارداد خراب نباید بقیه را
+# بخواباند — ولی شمارش باید نگه داشته شود و نتیجه واقعی گزارش شود.
+log "دور دهم: سکوتِ موفق در deploy"
+
+if [ "$DRY_RUN" != "1" ] && [ -f "$ROOT_DIR/scripts/deploy_functions.sh" ]; then
+  mkdir -p "$BK/scripts"
+  cp "$ROOT_DIR/scripts/deploy_functions.sh" "$BK/scripts/deploy_functions.cnt.sh"
+  node - "$ROOT_DIR" <<'NODEEOF'
+const fs = require('fs');
+const path = require('path');
+const p = path.join(process.argv[2], 'scripts', 'deploy_functions.sh');
+let s = fs.readFileSync(p, 'utf8');
+
+if (s.includes('INSTALLED_OK')) { console.log('  از قبل اعمال شده'); process.exit(0); }
+
+const before = s;
+
+// شمارنده پیش از حلقه
+s = s.replace(
+  /(  # مرحله ۲: نصب \+ approve \+ commit هر قرارداد \(با tar آماده\)\n)(  for cc in \$contracts; do)/,
+  '$1  local INSTALLED_OK=0 INSTALLED_FAIL=0 FAILED_LIST=""\n$2');
+
+// شمارش در حلقه
+s = s.replace(
+  /(    if \[ -z "\$pkgid" \]; then\n      log "هشدار: نصب \$cc ناموفق — رد شد"\n)(      continue)/,
+  '$1      INSTALLED_FAIL=$((INSTALLED_FAIL+1)); FAILED_LIST="$FAILED_LIST $cc"\n$2');
+s = s.replace(
+  /(    approve_commit_one "\$cc" "\$ch" "\$pkgid"\n)/,
+  '$1    INSTALLED_OK=$((INSTALLED_OK+1))\n');
+
+// نتیجه واقعی به‌جای «موفق» بی‌قید
+s = s.replace(
+  /  success "کانال \$ch کامل deploy شد"/,
+  `  if [ "$INSTALLED_FAIL" -gt 0 ]; then
+    log "خطا: کانال $ch — $INSTALLED_OK نصب موفق، $INSTALLED_FAIL ناموفق:$FAILED_LIST"
+    log "  اگر پیام «directory not found» دیدید، مسیر CHAINCODE_DIR با"
+    log "  محل خروجی generateChaincodes_hospital.sh نمی‌خواند."
+    return 1
+  fi
+  success "کانال $ch کامل deploy شد — $INSTALLED_OK قرارداد"`);
+
+if (s === before) console.error('  هشدار: هیچ الگویی در deploy_functions.sh تطبیق نیافت');
+else { fs.writeFileSync(p, s); console.log('  شمارش نصب اضافه شد'); }
+NODEEOF
+  bash -n "$ROOT_DIR/scripts/deploy_functions.sh" || { echo "  ✗ نحو deploy_functions شکست"; exit 1; }
+fi
+
+# ── ۱۸. همخوانی مسیر chaincode بین همه اجزا ────────────
+# مولد، deploy-staged.sh، network.sh و bootstrap باید همه یک مسیر
+# را بگویند. ناهمخوانی این چهار، باگی ساخت که تا لحظه نصب پنهان ماند.
+log "دور یازدهم: همخوانی مسیر chaincode"
+
 # ── تأیید ───────────────────────────────────────────────
 if [ "$DRY_RUN" = "1" ]; then
   log "DRY_RUN — هیچ تغییری اعمال نشد"
@@ -657,6 +719,15 @@ check "bootstrap مسیر نسبی به پوشه‌های ریشه ندارد" \
 check "bootstrap کانال نامعتبر را پیش از پاک‌سازی می‌گیرد" \
       "cd '$ROOT_DIR/scripts' && out=\$(ROOT_DIR='$ROOT_DIR' CHANNELS=datachannel bash bootstrap-secure.sh 2>&1) ; \
        echo \"\$out\" | grep -q 'کانال ناشناخته' && ! echo \"\$out\" | grep -qE 'پاک‌سازی|ادامه؟'"
+# 🔴 این بررسی کل کلاس را می‌گیرد: هر جزئی که مسیر chaincode را
+# می‌داند باید همان مسیر را بگوید. ناهمخوانی مولد و زیرساخت تا
+# لحظه `peer lifecycle chaincode package` پنهان می‌ماند.
+check "مسیر chaincode در همه اجزا یکی است" \
+      "cd '$ROOT_DIR' && [ \"\$(grep -hoE 'CHAINCODE_DIR=\"[^\"]+\"|CC_DIR=\"\\\$\\{CC_DIR:-[^}]+\\}\"' \
+         scripts/deploy-staged.sh scripts/network.sh scripts/generateChaincodes_hospital.sh \
+         | sed -E 's/.*(SCRIPTS_DIR|ROOT_DIR\/scripts)\/chaincode.*/OK/' | sort -u | tr -d '\n')\" = 'OK' ]"
+check "deploy نصب ناموفق را موفق گزارش نمی‌کند" \
+      "grep -q 'INSTALLED_FAIL' '$ROOT_DIR/scripts/deploy_functions.sh'"
 check "کانال ناشناخته در deploy سکوتِ موفق نمی‌دهد" \
       "! grep -q 'قراردادی ندارد\"; return 0' '$ROOT_DIR/scripts/deploy_functions.sh'"
 check "کانال‌های bootstrap در نگاشت وجود دارند" \

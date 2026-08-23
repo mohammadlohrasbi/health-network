@@ -59,6 +59,39 @@ for s in network.sh setup-raft.sh set-tls.sh deploy-staged.sh seed-hospital.sh; 
     [ -f "$SCRIPTS/$s" ] || die "$s نیست"
 done
 ok "اسکریپت‌ها"
+
+# ── اعتبارسنجی کانال‌های خواسته‌شده ──
+# پیش از هر کار مخرب. نام کانال از channel_contract_map.sh خوانده
+# می‌شود که همان منبعی است که deploy-staged.sh هم می‌خواند.
+if [ "$CHANNELS" != "all" ]; then
+    # shellcheck source=/dev/null
+    WANTED="$CHANNELS"
+    source "$SCRIPTS/channel_contract_map.sh"
+    CHANNELS_ALL=("${CHANNELS[@]}")
+    CHANNELS="$WANTED"
+    BAD=""
+    for want in $CHANNELS; do
+        found=0
+        for have in "${CHANNELS_ALL[@]:-${CHANNELS[@]}}"; do
+            [ "$have" = "$want" ] && found=1 && break
+        done
+        [ "$found" = "0" ] && BAD="$BAD $want"
+    done
+    if [ -n "$BAD" ]; then
+        echo
+        warn "کانال ناشناخته:$BAD"
+        warn "هیچ کاری انجام نشد — شبکه فعلی دست‌نخورده است."
+        echo
+        echo "  کانال‌های موجود:"
+        source "$SCRIPTS/channel_contract_map.sh"
+        printf '    %s\n' "${CHANNELS[@]}"
+        echo
+        echo "  پیشنهاد برای اولین اجرا:"
+        echo "    CHANNELS=\"admissionchannel auditchannel\" ./bootstrap-secure.sh"
+        exit 1
+    fi
+    ok "کانال‌ها معتبرند: $CHANNELS"
+fi
 for t in docker go node openssl; do
     command -v "$t" >/dev/null 2>&1 || die "$t نصب نیست"
 done

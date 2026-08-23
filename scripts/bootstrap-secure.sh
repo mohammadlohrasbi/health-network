@@ -156,7 +156,7 @@ if [ "$DRY_RUN" = "1" ]; then
 else
     bash generateChaincodes_hospital.sh \
         || die "generateChaincodes_hospital.sh شکست خورد — جداگانه اجرا کنید تا خطای کامپایل دیده شود"
-    COUNT=$(ls chaincode 2>/dev/null | wc -l)
+    COUNT=$(find "$ROOT_DIR/chaincode" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)
     [ "$COUNT" -eq 110 ] || die "$COUNT قرارداد تولید شد، انتظار 110"
     ok "110 قرارداد — اسکریپت خودش کامپایل را بررسی کرد"
 fi

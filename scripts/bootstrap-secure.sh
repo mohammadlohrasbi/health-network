@@ -185,11 +185,16 @@ ok "TLS روی همه نودها"
 # ── ۴) قراردادها ──
 step "۴/۷  تولید قراردادها"
 if [ "$DRY_RUN" = "1" ]; then
-    echo "    \$ bash generateChaincodes_hospital.sh"
+    echo "    \$ node gen-hospital-contracts.js && bash generateChaincodes_hospital.sh"
 else
+    # اسکریپت تولید، خودش تولیدشده است. اول از مولد بازش می‌سازیم تا
+    # نسخه commit شده هرگز از مولد عقب نماند — دقیقاً همان چیزی که
+    # باعث شد قراردادها یک بار دیگر در مسیر قدیمی ساخته شوند.
+    node gen-hospital-contracts.js >/dev/null \
+        || die "gen-hospital-contracts.js شکست خورد"
     bash generateChaincodes_hospital.sh \
         || die "generateChaincodes_hospital.sh شکست خورد — جداگانه اجرا کنید تا خطای کامپایل دیده شود"
-    COUNT=$(find "$ROOT_DIR/chaincode" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)
+    COUNT=$(find "$SCRIPTS/chaincode" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)
     [ "$COUNT" -eq 110 ] || die "$COUNT قرارداد تولید شد، انتظار 110"
     ok "110 قرارداد — اسکریپت خودش کامپایل را بررسی کرد"
 fi

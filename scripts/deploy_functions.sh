@@ -219,6 +219,35 @@ cleanup_dev_containers() {
 }
 
 # --------- نصب یک قرارداد که tar آن از قبل ساخته شده ---------
+
+# --------- تضمین وجود go.sum پیش از build ---------
+# هر پوشه قرارداد یک ماژول Go مستقل است. بدون go.sum در همان
+# پوشه، `go build` رد می‌کند:
+#   missing go.sum entry for module providing package ...
+#
+# مولد این را با «یک بار tidy، بعد توزیع» حل می‌کند، ولی اینجا
+# لایه دوم است تا استقرار به سلامت نسخه مولد گره نخورد.
+# اولین tidy کش ماژول را پر می‌کند، پس بقیه تقریباً بی‌هزینه‌اند.
+ensure_go_sum() {
+  local dir="$1" name="$2"
+  [ -f "$dir/go.sum" ] && return 0
+
+  # اگر قرارداد دیگری go.sum دارد، همان را کپی کن — همه دقیقاً
+  # یک import دارند، پس go.sum یکی است و این از tidy سریع‌تر است.
+  local donor
+  donor=$(find "$CHAINCODE_DIR" -mindepth 2 -maxdepth 2 -name go.sum -print -quit 2>/dev/null)
+  if [ -n "$donor" ]; then
+    cp "$donor" "$dir/go.sum" && return 0
+  fi
+
+  echo "  [build] $name: go.sum نیست — go mod tidy..."
+  ( cd "$dir" && go mod tidy >/dev/null 2>&1 ) || {
+    echo "ERROR: go mod tidy failed for $name — دسترسی به proxy.golang.org را بررسی کنید"
+    return 1
+  }
+  [ -f "$dir/go.sum" ]
+}
+
 manual_package_one() {
   local name="$1"
   local src_dir="$CHAINCODE_DIR/$name"
@@ -228,14 +257,23 @@ manual_package_one() {
   [ ! -d "$src_dir" ] && { echo "ERROR: directory not found: $src_dir"; return 1; }
   [ ! -f "$src_dir/go.mod" ] && { echo "ERROR: go.mod not found in $src_dir"; return 1; }
 
+  ensure_go_sum "$src_dir" "$name" || return 1
+
   echo "  [build] Compiling $name for linux/amd64..."
   local build_args=()
   [ -d "$src_dir/vendor" ] && build_args+=("-mod=vendor")
 
   if ! (cd "$src_dir" && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
         go build "${build_args[@]}" -ldflags="-s -w" -o "$bin_out" . 2>&1); then
-    echo "ERROR: go build failed for $name"
-    return 1
+    # یک تلاش دوباره پس از tidy: go.sum ممکن است ناقص باشد
+    # (مثلاً از قراردادی با import متفاوت کپی شده).
+    echo "  [build] $name: build رد شد — go mod tidy و تلاش دوباره..."
+    if ! ( cd "$src_dir" && go mod tidy >/dev/null 2>&1 \
+           && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+              go build "${build_args[@]}" -ldflags="-s -w" -o "$bin_out" . 2>&1 ); then
+      echo "ERROR: go build failed for $name"
+      return 1
+    fi
   fi
 
   local work

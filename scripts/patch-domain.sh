@@ -501,6 +501,93 @@ NODEEOF
   bash -n "$ROOT_DIR/scripts/bootstrap-secure.sh" || { echo "  ✗ نحو bootstrap شکست"; exit 1; }
 fi
 
+
+# ── ۱۵. دور هشتم: اعتبارسنجی زودهنگام کانال ────────────
+# 🔴 log سوم سرور: کاربر `CHANNELS="datachannel"` داد (کانال 6G،
+# از یادداشت قدیمی کپی شده). bootstrap کل شبکه را پاک کرد، بیست
+# دقیقه CA و TLS و Raft و ۲۲ کانتینر ساخت، و **تازه در گام ۷/۷**
+# فهمید کانال وجود ندارد → «هیچ قراردادی commit نشد».
+#
+# این نقص طراحی است نه اشتباه کاربر: هر ورودی قابل اعتبارسنجی
+# باید **پیش از** عملیات مخرب بررسی شود. اعتبارسنجی را به گام
+# پیش‌نیازها می‌بریم، قبل از تأیید پاک‌سازی.
+log "دور هشتم: اعتبارسنجی زودهنگام کانال"
+
+if [ "$DRY_RUN" != "1" ] && [ -f "$ROOT_DIR/scripts/bootstrap-secure.sh" ]; then
+  mkdir -p "$BK/scripts"
+  cp "$ROOT_DIR/scripts/bootstrap-secure.sh" "$BK/scripts/bootstrap-secure.chk.sh"
+  node - "$ROOT_DIR" <<'NODEEOF'
+const fs = require('fs');
+const path = require('path');
+const p = path.join(process.argv[2], 'scripts', 'bootstrap-secure.sh');
+let s = fs.readFileSync(p, 'utf8');
+
+if (s.includes('اعتبارسنجی کانال‌های خواسته‌شده')) {
+  console.log('  از قبل اعمال شده'); process.exit(0);
+}
+
+// اعتبارسنجی کانال **اولین** بررسی باشد: ارزان‌ترین است، هیچ
+// ابزاری لازم ندارد، و بیشترین ضرر را جلوگیری می‌کند. اگر بعد از
+// بررسی docker می‌آمد، روی ماشینی بدون docker هرگز اجرا نمی‌شد.
+const anchor = 'ok "اسکریپت‌ها"\n';
+if (!s.includes(anchor)) {
+  console.error('  هشدار: نقطه اتصال پیش‌نیازها پیدا نشد'); process.exit(0);
+}
+
+const CHECK = anchor + `
+# ── اعتبارسنجی کانال‌های خواسته‌شده ──
+# پیش از هر کار مخرب. نام کانال از channel_contract_map.sh خوانده
+# می‌شود که همان منبعی است که deploy-staged.sh هم می‌خواند.
+if [ "$CHANNELS" != "all" ]; then
+    # shellcheck source=/dev/null
+    source "$SCRIPTS/channel_contract_map.sh"
+    BAD=""
+    for want in $CHANNELS; do
+        found=0
+        for have in "\${CHANNELS_ALL[@]:-\${CHANNELS[@]}}"; do
+            [ "$have" = "$want" ] && found=1 && break
+        done
+        [ "$found" = "0" ] && BAD="$BAD $want"
+    done
+    if [ -n "$BAD" ]; then
+        echo
+        warn "کانال ناشناخته:$BAD"
+        warn "هیچ کاری انجام نشد — شبکه فعلی دست‌نخورده است."
+        echo
+        echo "  کانال‌های موجود:"
+        source "$SCRIPTS/channel_contract_map.sh"
+        printf '    %s\\n' "\${CHANNELS[@]}"
+        echo
+        echo "  پیشنهاد برای اولین اجرا:"
+        echo "    CHANNELS=\\"admissionchannel auditchannel\\" ./bootstrap-secure.sh"
+        exit 1
+    fi
+    ok "کانال‌ها معتبرند: $CHANNELS"
+fi
+`;
+// source داخل تابع CHANNELS را بازنویسی می‌کند؛ نسخه اصلی را
+// پیش از حلقه نگه می‌داریم.
+s = s.replace(anchor, CHECK.replace(
+  'source "$SCRIPTS/channel_contract_map.sh"\n    BAD=""',
+  'WANTED="$CHANNELS"\n    source "$SCRIPTS/channel_contract_map.sh"\n    CHANNELS_ALL=("${CHANNELS[@]}")\n    CHANNELS="$WANTED"\n    BAD=""'));
+fs.writeFileSync(p, s);
+console.log('  اعتبارسنجی کانال به پیش‌نیازها اضافه شد');
+NODEEOF
+  bash -n "$ROOT_DIR/scripts/bootstrap-secure.sh" || { echo "  ✗ نحو bootstrap شکست"; exit 1; }
+fi
+
+# ── ۱۶. دور نهم: کانال ناشناخته باید خطا باشد ──────────
+# deploy_functions.sh برای کانالی که قرارداد ندارد `return 0`
+# می‌داد — سکوتِ موفق. به همین دلیل bootstrap با datachannel تا
+# انتها رفت و فقط در شمارش نهایی شکست خورد.
+#
+# در نگاشت سلامت هر ۲۰ کانال قرارداد دارد، پس فهرست خالی فقط یک
+# معنا دارد: کانال ناشناخته. باید صریح خطا بدهد.
+log "دور نهم: کانال ناشناخته = خطا"
+
+edit scripts/deploy_functions.sh \
+  's#\[ -z "\$contracts" \] && { log "کانال \$ch قراردادی ندارد"; return 0; }#[ -z "$contracts" ] \&\& { log "خطا: کانال $ch در channel_contract_map.sh نیست — نام را بررسی کنید"; return 1; }#'
+
 # ── تأیید ───────────────────────────────────────────────
 if [ "$DRY_RUN" = "1" ]; then
   log "DRY_RUN — هیچ تغییری اعمال نشد"
@@ -564,6 +651,14 @@ check "همه اسکریپت‌ها نحو درست دارند" \
 check "bootstrap مسیر نسبی به پوشه‌های ریشه ندارد" \
       "! grep -nE '(ls|find|cat|cd|test|\\[) +(chaincode|config|server|public|reference|channel-artifacts)([ /\"]|\\\$)' \
          '$ROOT_DIR/scripts/bootstrap-secure.sh'"
+# ROOT_DIR باید صریح پاس شود، وگرنه اسکریپت پیش‌فرض
+# /root/health-network را می‌گیرد و روی «network.sh نیست» می‌افتد
+# پیش از اینکه به اعتبارسنجی کانال برسد.
+check "bootstrap کانال نامعتبر را پیش از پاک‌سازی می‌گیرد" \
+      "cd '$ROOT_DIR/scripts' && out=\$(ROOT_DIR='$ROOT_DIR' CHANNELS=datachannel bash bootstrap-secure.sh 2>&1) ; \
+       echo \"\$out\" | grep -q 'کانال ناشناخته' && ! echo \"\$out\" | grep -qE 'پاک‌سازی|ادامه؟'"
+check "کانال ناشناخته در deploy سکوتِ موفق نمی‌دهد" \
+      "! grep -q 'قراردادی ندارد\"; return 0' '$ROOT_DIR/scripts/deploy_functions.sh'"
 check "کانال‌های bootstrap در نگاشت وجود دارند" \
       "cd '$ROOT_DIR/server' && node -e '
         const fs=require(\"fs\");

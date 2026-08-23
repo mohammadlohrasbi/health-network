@@ -794,6 +794,88 @@ NODEEOF
   bash -n "$ROOT_DIR/scripts/seed-hospital.sh" || { echo "  ✗ نحو seed-hospital شکست"; exit 1; }
 fi
 
+
+# ── ۲۰. دور سیزدهم: خوددرمانی go.sum در بسته‌بندی ──────
+# 🔴 log ششم: `missing go.sum entry` روی هر ۷ قرارداد.
+#
+# مولد این را حل کرده (یک بار tidy، بعد توزیع go.sum)، ولی آن
+# راه‌حل **تک‌نقطه‌ای** است: اگر مخزن نسخه قدیمی مولد را داشته
+# باشد، یا tidy به proxy.golang.org نرسد، همان خطا برمی‌گردد —
+# و این بار بعد از ساخت کامل شبکه.
+#
+# پس لایه دوم: `manual_package_one` خودش تشخیص دهد. اگر پوشه
+# go.sum ندارد یا build با «missing go.sum entry» رد شد، یک بار
+# tidy بزند و دوباره تلاش کند. ارزان است (کش ماژول مشترک است) و
+# استقرار را به سلامت نسخه مولد گره نمی‌زند.
+log "دور سیزدهم: خوددرمانی go.sum در بسته‌بندی"
+
+if [ "$DRY_RUN" != "1" ] && ! grep -q 'ensure_go_sum' "$ROOT_DIR/scripts/deploy_functions.sh"; then
+  mkdir -p "$BK/scripts"
+  cp "$ROOT_DIR/scripts/deploy_functions.sh" "$BK/scripts/deploy_functions.gosum.sh"
+  node - "$ROOT_DIR" <<'NODEEOF'
+const fs = require('fs');
+const path = require('path');
+const p = path.join(process.argv[2], 'scripts', 'deploy_functions.sh');
+let s = fs.readFileSync(p, 'utf8');
+
+const HELPER = `
+# --------- تضمین وجود go.sum پیش از build ---------
+# هر پوشه قرارداد یک ماژول Go مستقل است. بدون go.sum در همان
+# پوشه، \`go build\` رد می‌کند:
+#   missing go.sum entry for module providing package ...
+#
+# مولد این را با «یک بار tidy، بعد توزیع» حل می‌کند، ولی اینجا
+# لایه دوم است تا استقرار به سلامت نسخه مولد گره نخورد.
+# اولین tidy کش ماژول را پر می‌کند، پس بقیه تقریباً بی‌هزینه‌اند.
+ensure_go_sum() {
+  local dir="$1" name="$2"
+  [ -f "$dir/go.sum" ] && return 0
+
+  # اگر قرارداد دیگری go.sum دارد، همان را کپی کن — همه دقیقاً
+  # یک import دارند، پس go.sum یکی است و این از tidy سریع‌تر است.
+  local donor
+  donor=$(find "$CHAINCODE_DIR" -mindepth 2 -maxdepth 2 -name go.sum -print -quit 2>/dev/null)
+  if [ -n "$donor" ]; then
+    cp "$donor" "$dir/go.sum" && return 0
+  fi
+
+  echo "  [build] $name: go.sum نیست — go mod tidy..."
+  ( cd "$dir" && go mod tidy >/dev/null 2>&1 ) || {
+    echo "ERROR: go mod tidy failed for $name — دسترسی به proxy.golang.org را بررسی کنید"
+    return 1
+  }
+  [ -f "$dir/go.sum" ]
+}
+
+`;
+
+// helper را پیش از manual_package_one بگذار
+s = s.replace(/manual_package_one\(\) \{/, HELPER + 'manual_package_one() {');
+
+// فراخوانی پیش از build
+s = s.replace(
+  /(  \[ ! -f "\$src_dir\/go\.mod" \] && \{ echo "ERROR: go\.mod not found in \$src_dir"; return 1; \}\n)/,
+  '$1\n  ensure_go_sum "$src_dir" "$name" || return 1\n');
+
+// تلاش دوباره اگر build با همان خطا افتاد
+s = s.replace(
+  /(  if ! \(cd "\$src_dir" && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \\\n        go build "\$\{build_args\[@\]\}" -ldflags="-s -w" -o "\$bin_out" \. 2>&1\); then\n)(    echo "ERROR: go build failed for \$name"\n    return 1\n  fi)/,
+  '$1    # یک تلاش دوباره پس از tidy: go.sum ممکن است ناقص باشد\n'
+  + '    # (مثلاً از قراردادی با import متفاوت کپی شده).\n'
+  + '    echo "  [build] $name: build رد شد — go mod tidy و تلاش دوباره..."\n'
+  + '    if ! ( cd "$src_dir" && go mod tidy >/dev/null 2>&1 \\\n'
+  + '           && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \\\n'
+  + '              go build "${build_args[@]}" -ldflags="-s -w" -o "$bin_out" . 2>&1 ); then\n'
+  + '      echo "ERROR: go build failed for $name"\n'
+  + '      return 1\n'
+  + '    fi\n  fi');
+
+fs.writeFileSync(p, s);
+console.log('  خوددرمانی go.sum اضافه شد');
+NODEEOF
+  bash -n "$ROOT_DIR/scripts/deploy_functions.sh" || { echo "  ✗ نحو deploy_functions شکست"; exit 1; }
+fi
+
 # ── تأیید ───────────────────────────────────────────────
 if [ "$DRY_RUN" = "1" ]; then
   log "DRY_RUN — هیچ تغییری اعمال نشد"
@@ -877,6 +959,11 @@ check "bootstrap کانال نامعتبر را پیش از پاک‌سازی م
 # eval اجرا می‌کند، پس یک `exit` بی‌محافظ کل patch-domain.sh را
 # می‌بندد و بررسی‌های بعدی هرگز اجرا نمی‌شوند (با کد خروج ۰،
 # یعنی بی‌صدا موفق به نظر می‌رسد).
+check "مولد go.sum را به همه قراردادها توزیع می‌کند" \
+      "grep -q 'توزیع go.sum' '$ROOT_DIR/scripts/generateChaincodes_hospital.sh' \
+       && grep -q 'go mod tidy' '$ROOT_DIR/scripts/generateChaincodes_hospital.sh'"
+check "بسته‌بندی نبود go.sum را خودش درمان می‌کند" \
+      "grep -q 'ensure_go_sum' '$ROOT_DIR/scripts/deploy_functions.sh'"
 check "فایل‌های تولیدشده با مولدشان همگام‌اند" \
       "( cd '$ROOT_DIR/scripts' && T=\$(mktemp -d) \
          && cp generateChaincodes_hospital.sh \"\$T/old\" \

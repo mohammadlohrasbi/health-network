@@ -361,6 +361,140 @@ edit scripts/check-go.js \
   "s#entity-serving contracts have — the antenna-subject one must omit it.#قراردادهای selector دارند؛ ledger و guarded آن را ندارند.#" \
   "s#new Set(\['Antenna', 'Account', 'NetworkConfig', 'CellReport',#new Set(['Facility', 'Account', 'NetConfig', 'Record', 'Selection', 'News2Result', 'ClaimResult',#"
 
+
+# ── ۱۲. دور پنجم: bootstrap-secure.sh ───────────────────
+# 🔴 این‌ها را log واقعی سرور نشان داد، نه گشت من. سه اشکال که
+# راه‌اندازی را در گام ۴/۷ متوقف می‌کرد:
+#
+#  ۱. دور دوم فقط `generateChaincodes_spatial.sh` را جایگزین کرد،
+#     ولی bootstrap در عمل از glob `generateChaincodes_part*.sh`
+#     استفاده می‌کند. آن فایل‌ها را port-from-6g.sh حذف کرده، پس
+#     حلقه روی الگوی بی‌تطابق می‌چرخید و die می‌کرد.
+#  ۲. شمارش `[ "$COUNT" -eq 86 ]` — عدد 6G. حالا ۱۱۰ قرارداد است.
+#  ۳. `CHANNELS="${CHANNELS:-datachannel}"` — datachannel کانال 6G
+#     است و در نگاشت سلامت وجود ندارد. حتی اگر گام ۴ می‌گذشت،
+#     گام ۷ کانالی می‌ساخت که هیچ قراردادی روی آن نیست.
+#
+# درس: گشت واژگانی روی **نام فایل‌های شناخته‌شده** کافی نیست وقتی
+# اسکریپت از glob استفاده می‌کند. تنها اجرای واقعی این را نشان داد.
+log "دور پنجم: bootstrap-secure.sh"
+
+if [ "$DRY_RUN" != "1" ] && [ -f "$ROOT_DIR/scripts/bootstrap-secure.sh" ]; then
+  mkdir -p "$BK/scripts"; cp "$ROOT_DIR/scripts/bootstrap-secure.sh" "$BK/scripts/"
+  node - "$ROOT_DIR" <<'NODEEOF'
+const fs = require('fs');
+const path = require('path');
+const root = process.argv[2];
+const { CHANNEL_CHAINCODE_MAP, CONTRACT_FN } =
+  require(path.join(root, 'server', 'contract-fn-map.js'));
+const total = Object.keys(CONTRACT_FN).length;
+
+const p = path.join(root, 'scripts', 'bootstrap-secure.sh');
+let s = fs.readFileSync(p, 'utf8');
+const before = s;
+
+// ۱) glob تولید قراردادها → اسکریپت واحد سلامت
+s = s.replace(
+  /echo "    \\\$ for f in generateChaincodes_part\*\.sh; do bash \\"\\\$f\\"; done"/,
+  'echo "    \\$ bash generateChaincodes_hospital.sh"');
+s = s.replace(
+  /for f in generateChaincodes_part\*\.sh; do\n\s*bash "\$f"[^\n]*\n\s*done/,
+  'bash generateChaincodes_hospital.sh \\\n'
+  + '        || die "generateChaincodes_hospital.sh شکست خورد — جداگانه اجرا کنید تا خطای کامپایل دیده شود"');
+
+// ۲) شمارش قراردادها
+s = s.replace(/\[ "\$COUNT" -eq 86 \] \|\| die "\$COUNT قرارداد تولید شد، انتظار ۸۶"/,
+  `[ "$COUNT" -eq ${total} ] || die "$COUNT قرارداد تولید شد، انتظار ${total}"`);
+s = s.replace(/ok "۸۶ قرارداد — و اسکریپت مکانی خودش کامپایل را بررسی کرد"/,
+  `ok "${total} قرارداد — اسکریپت خودش کامپایل را بررسی کرد"`);
+
+// ۳) کانال پیش‌فرض. admissionchannel انتخاب شده چون هر هفت
+// قراردادش selector است — یعنی کوتاه‌ترین مسیر تا اولین عدد
+// معنادار. auditchannel به عنوان شاهد کنارش می‌آید.
+const def = 'admissionchannel';
+s = s.replace(/CHANNELS="\$\{CHANNELS:-datachannel\}"/, `CHANNELS="\${CHANNELS:-${def}}"`);
+s = s.replace(/# ۳ نود Raft، TLS کامل، datachannel/, `# ۳ نود Raft، TLS کامل، ${def}`);
+s = s.replace(/CHANNELS="datachannel auditchannel"/, `CHANNELS="${def} auditchannel"`);
+s = s.replace(/# هر ۲۰ کانال \(طولانی\)/,
+  `# هر ${Object.keys(CHANNEL_CHAINCODE_MAP).length} کانال (طولانی)`);
+
+// ۴) عنوان
+s = s.replace(/راه‌اندازی شبکه 6G از صفر/g, 'راه‌اندازی شبکه ملی سلامت از صفر');
+
+if (s === before) {
+  console.error('  هشدار: هیچ الگویی در bootstrap-secure.sh تطبیق نیافت');
+} else {
+  fs.writeFileSync(p, s);
+  console.log('  bootstrap-secure.sh به‌روز شد');
+}
+
+// اعتبارسنجی: هر کانالی که در پیش‌فرض یا مثال‌ها آمده باید واقعاً
+// در نگاشت باشد. اگر نبود، گام ۷ کانالی می‌سازد که قرارداد ندارد.
+const body = fs.readFileSync(p, 'utf8');
+const named = [...new Set([...body.matchAll(/\b(\w+channel)\b/g)].map((m) => m[1]))];
+const bad = named.filter((c) => !(c in CHANNEL_CHAINCODE_MAP));
+if (bad.length) {
+  console.error('  ✗ کانال‌های ناموجود در bootstrap:', bad.join(', '));
+  process.exit(1);
+}
+console.log(`  ✓ هر ${named.length} کانال نام‌برده در نگاشت وجود دارد`);
+NODEEOF
+fi
+
+
+# ── ۱۳. دور ششم: ارجاع به فایل‌های حذف‌شده ─────────────
+# با یک گشت ایستا روی همه `./x.sh`، `bash x.sh`، `node x.js` در
+# اسکریپت‌ها پیدا شدند. هیچ‌کدام واژه دامنه‌ای نداشتند، پس گشت‌های
+# قبلی نگرفتند — و هر دو فقط هنگام اجرا خطا می‌دادند.
+#
+#  · update-fn-map.js — در 6G نگاشت توابع را از کد Go مهندسی
+#    معکوس می‌کرد. اینجا مولد خودش آن را می‌سازد، پس فایل حذف شده.
+#  · seed-network.sh در راهنمای پایانی setup-raft.sh
+log "دور ششم: ارجاع به فایل‌های حذف‌شده"
+
+edit scripts/bootstrap-secure.sh \
+  's#node update-fn-map.js >/dev/null 2>&1 \&\& ok "نگاشت توابع"#node gen-hospital-contracts.js >/dev/null 2>\&1 \&\& ok "نگاشت توابع و مانیفست امضاها"#'
+
+edit scripts/setup-raft.sh \
+  's#\./seed-network\.sh datachannel#./seed-hospital.sh admissionchannel#'
+
+
+# ── ۱۴. دور هفتم: پیام هشدار حافظه ─────────────────────
+# log سرور نشان داد: «حافظه آزاد 1712MB ... اگر OOM دیدید،
+# NODES=3 را امتحان کنید» — در حالی که NODES از قبل ۳ بود. توصیه
+# بی‌معنا بود و کاربر را سردرگم می‌کرد.
+#
+# و برآورد هم دقیق نیست: فرمول 1200+200×نود برای peer ها است، ولی
+# در عمل مصرف اوج هنگام **کامپایل Go قراردادها** رخ می‌دهد
+# (dev-container). با ۱۱۰ قرارداد این بیشتر از 6G است.
+log "دور هفتم: پیام حافظه"
+
+if [ "$DRY_RUN" != "1" ]; then
+  mkdir -p "$BK/scripts"
+  cp "$ROOT_DIR/scripts/bootstrap-secure.sh" "$BK/scripts/bootstrap-secure.mem.sh"
+  node - "$ROOT_DIR" <<'NODEEOF'
+const fs = require('fs');
+const path = require('path');
+const p = path.join(process.argv[2], 'scripts', 'bootstrap-secure.sh');
+let s = fs.readFileSync(p, 'utf8');
+const before = s;
+s = s.replace(
+  /    warn "اگر OOM دیدید، NODES=3 را امتحان کنید"/,
+  `    if [ "$NODES" -gt 3 ]; then
+        warn "با NODES=3 دوباره امتحان کنید (هر نود اضافه ~200MB)"
+    else
+        warn "کمترین پیکربندی همین است. پیش از ادامه:"
+        warn "  systemctl stop dashboard 2>/dev/null"
+        warn "  docker system prune -f"
+        warn "مصرف اوج هنگام کامپایل Go قراردادهاست، نه اجرای peer ها —"
+        warn "پس اگر گام ۴/۷ گذشت، بقیه معمولاً می‌گذرد."
+    fi`);
+if (s === before) console.error('  هشدار: پیام حافظه تطبیق نیافت');
+else { fs.writeFileSync(p, s); console.log('  پیام حافظه اصلاح شد'); }
+NODEEOF
+  bash -n "$ROOT_DIR/scripts/bootstrap-secure.sh" || { echo "  ✗ نحو bootstrap شکست"; exit 1; }
+fi
+
 # ── تأیید ───────────────────────────────────────────────
 if [ "$DRY_RUN" = "1" ]; then
   log "DRY_RUN — هیچ تغییری اعمال نشد"
@@ -410,6 +544,37 @@ check "ماژول‌های سرور بارگذاری می‌شوند" \
         const bad=[...s.matchAll(/catalogue\\.(\\w+)/g)].map(m=>m[1])
           .filter(k=>!(k in require(\"./bench-catalog\")));
         if(bad.length){console.error(\"میدان ناموجود در کاتالوگ:\",bad);process.exit(1);}'"
+# bootstrap باید بدون هیچ ارجاع به فایل یا کانال ناموجود باشد.
+# این بررسی مستقیماً از log سرور آمد.
+check "bootstrap به فایل ناموجود ارجاع نمی‌دهد" \
+      "! grep -qE 'generateChaincodes_(part|spatial)|upgrade-spatial|seed-network\.sh' \
+         '$ROOT_DIR/scripts/bootstrap-secure.sh'"
+check "همه اسکریپت‌ها نحو درست دارند" \
+      "cd '$ROOT_DIR' && for f in scripts/*.sh server/*.sh install.sh; do bash -n \"\$f\" || exit 1; done"
+check "کانال‌های bootstrap در نگاشت وجود دارند" \
+      "cd '$ROOT_DIR/server' && node -e '
+        const fs=require(\"fs\");
+        const {CHANNEL_CHAINCODE_MAP}=require(\"./contract-fn-map\");
+        const b=fs.readFileSync(\"../scripts/bootstrap-secure.sh\",\"utf8\");
+        const bad=[...new Set([...b.matchAll(/\\b(\\w+channel)\\b/g)].map(m=>m[1]))]
+          .filter(c=>!(c in CHANNEL_CHAINCODE_MAP));
+        if(bad.length){console.error(bad);process.exit(1);}'"
+# 🔴 این بررسی کل کلاس خطا را می‌گیرد، نه یک نمونه را. دو باگ
+# آخر (generateChaincodes_part*.sh و update-fn-map.js) هر دو
+# «ارجاع به فایلی که port حذفش کرده» بودند و هیچ واژه دامنه‌ای
+# نداشتند، پس با grep پیدا نمی‌شدند. حالا هر ارجاع به اسکریپتی
+# که وجود ندارد، همین‌جا می‌افتد.
+# خود این اسکریپت و port-from-6g.sh مستثنا هستند: کارشان دقیقاً
+# نام‌بردن از فایل‌هایی است که حذف شده‌اند (در الگوهای sed و در
+# کامنت‌ها)، پس همیشه مثبت کاذب می‌دهند.
+check "هیچ اسکریپتی به فایل غایب ارجاع نمی‌دهد" \
+      "[ -z \"\$(cd '$ROOT_DIR' && for f in scripts/*.sh server/*.sh install.sh; do
+          case \"\$f\" in *patch-domain.sh|*port-from-6g.sh) continue;; esac
+          grep -oE '\\./[A-Za-z0-9_.-]+\\.(sh|js)|\\b(bash|node|source) +[A-Za-z0-9_./-]+\\.(sh|js)' \"\$f\" 2>/dev/null \
+          | sed -E 's/^(bash|node|source) +//; s#^\\./##' | sort -u \
+          | while read r; do b=\"\$(basename \"\$r\")\";
+              [ -f \"scripts/\$b\" ] || [ -f \"server/\$b\" ] || [ -f \"\$b\" ] || echo \"\$f→\$b\"; done;
+        done)\" ]"
 check "هیچ ارجاع آنتن در کد فعال نمانده" \
       "[ -z \"\$(grep -rilE 'antenna|آنتن' --include='*.js' --include='*.html' \
          '$ROOT_DIR/public' '$ROOT_DIR/server' \

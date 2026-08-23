@@ -19,10 +19,10 @@
 # هم مسیر گواهی consenter ها را در خود دارد.
 #
 # استفاده:
-#   ./bootstrap-secure.sh              # ۳ نود Raft، TLS کامل، datachannel
+#   ./bootstrap-secure.sh              # ۳ نود Raft، TLS کامل، admissionchannel
 #   NODES=5 ./bootstrap-secure.sh
-#   CHANNELS="datachannel auditchannel" ./bootstrap-secure.sh
-#   CHANNELS=all ./bootstrap-secure.sh          # هر ۲۰ کانال (طولانی)
+#   CHANNELS="admissionchannel auditchannel" ./bootstrap-secure.sh
+#   CHANNELS=all ./bootstrap-secure.sh          # هر 20 کانال (طولانی)
 #   SKIP_NETWORK=1 ./bootstrap-secure.sh        # اگر crypto از قبل هست
 #   DRY_RUN=1 ./bootstrap-secure.sh
 #
@@ -34,7 +34,7 @@ ROOT_DIR="${ROOT_DIR:-/root/health-network}"
 SCRIPTS="$ROOT_DIR/scripts"
 CONFIG="$ROOT_DIR/config"
 NODES="${NODES:-3}"
-CHANNELS="${CHANNELS:-datachannel}"
+CHANNELS="${CHANNELS:-admissionchannel}"
 DRY_RUN="${DRY_RUN:-0}"
 SKIP_NETWORK="${SKIP_NETWORK:-0}"
 
@@ -47,7 +47,7 @@ run()   { if [ "$DRY_RUN" = "1" ]; then echo "    \$ $*"; else "$@"; fi; }
 
 echo ""
 echo "════════════════════════════════════════════"
-echo " راه‌اندازی شبکه 6G از صفر"
+echo " راه‌اندازی شبکه ملی سلامت از صفر"
 echo "   Raft با $NODES نود | TLS کامل"
 echo "   کانال‌ها: $CHANNELS"
 echo "════════════════════════════════════════════"
@@ -70,7 +70,15 @@ FREE_MB=$(free -m | awk '/^Mem:/{print $7}')
 NEEDED=$((1200 + NODES * 200))
 if [ "$FREE_MB" -lt "$NEEDED" ]; then
     warn "حافظه آزاد ${FREE_MB}MB — برای $NODES نود حدود ${NEEDED}MB توصیه می‌شود"
-    warn "اگر OOM دیدید، NODES=3 را امتحان کنید"
+    if [ "$NODES" -gt 3 ]; then
+        warn "با NODES=3 دوباره امتحان کنید (هر نود اضافه ~200MB)"
+    else
+        warn "کمترین پیکربندی همین است. پیش از ادامه:"
+        warn "  systemctl stop dashboard 2>/dev/null"
+        warn "  docker system prune -f"
+        warn "مصرف اوج هنگام کامپایل Go قراردادهاست، نه اجرای peer ها —"
+        warn "پس اگر گام ۴/۷ گذشت، بقیه معمولاً می‌گذرد."
+    fi
 else
     ok "حافظه: ${FREE_MB}MB آزاد"
 fi
@@ -144,14 +152,13 @@ ok "TLS روی همه نودها"
 # ── ۴) قراردادها ──
 step "۴/۷  تولید قراردادها"
 if [ "$DRY_RUN" = "1" ]; then
-    echo "    \$ for f in generateChaincodes_part*.sh; do bash \"\$f\"; done"
+    echo "    \$ bash generateChaincodes_hospital.sh"
 else
-    for f in generateChaincodes_part*.sh; do
-        bash "$f" >/dev/null 2>&1 || die "$f شکست خورد — با bash $f جداگانه اجرا کنید"
-    done
+    bash generateChaincodes_hospital.sh \
+        || die "generateChaincodes_hospital.sh شکست خورد — جداگانه اجرا کنید تا خطای کامپایل دیده شود"
     COUNT=$(ls chaincode 2>/dev/null | wc -l)
-    [ "$COUNT" -eq 86 ] || die "$COUNT قرارداد تولید شد، انتظار ۸۶"
-    ok "۸۶ قرارداد — و اسکریپت مکانی خودش کامپایل را بررسی کرد"
+    [ "$COUNT" -eq 110 ] || die "$COUNT قرارداد تولید شد، انتظار 110"
+    ok "110 قرارداد — اسکریپت خودش کامپایل را بررسی کرد"
 fi
 
 # ── ۵) بلوک پیدایش ──
@@ -269,7 +276,7 @@ if [ "$DRY_RUN" != "1" ]; then
         && ok "تشخیص TLS از .env"
     node gen-caliper-network.js >/dev/null 2>&1 && ok "پروفایل‌های Caliper (grpcs://)"
     ./fix-tape-policy.sh >/dev/null 2>&1 && ok "سیاست Tape"
-    node update-fn-map.js >/dev/null 2>&1 && ok "نگاشت توابع"
+    node gen-hospital-contracts.js >/dev/null 2>&1 && ok "نگاشت توابع و مانیفست امضاها"
     bash "$ROOT_DIR/server/patch-index.sh" >/dev/null 2>&1 && ok "سرور پچ شد"
     systemctl restart dashboard 2>/dev/null && ok "داشبورد ری‌استارت شد"
 fi

@@ -310,7 +310,7 @@ deploy_one_channel() {
   local ch="$1"
   local contracts="${CHANNEL_CONTRACTS[$ch]}"
 
-  [ -z "$contracts" ] && { log "کانال $ch قراردادی ندارد"; return 0; }
+  [ -z "$contracts" ] && { log "خطا: کانال $ch در channel_contract_map.sh نیست — نام را بررسی کنید"; return 1; }
 
   log "════════════════════════════════════════"
   log "شروع deploy کانال: $ch"
@@ -324,16 +324,19 @@ deploy_one_channel() {
   batch_package_channel "$ch"
 
   # مرحله ۲: نصب + approve + commit هر قرارداد (با tar آماده)
+  local INSTALLED_OK=0 INSTALLED_FAIL=0 FAILED_LIST=""
   for cc in $contracts; do
     log "── قرارداد $cc روی $ch ──"
     local pkgid
     pkgid=$(install_prepackaged "$cc")
     if [ -z "$pkgid" ]; then
       log "هشدار: نصب $cc ناموفق — رد شد"
+      INSTALLED_FAIL=$((INSTALLED_FAIL+1)); FAILED_LIST="$FAILED_LIST $cc"
       continue
     fi
     log "  نصب شد، Package ID: ${pkgid:0:40}..."
     approve_commit_one "$cc" "$ch" "$pkgid"
+    INSTALLED_OK=$((INSTALLED_OK+1))
     rm -f "/tmp/${cc}.tar.gz"
   done
 
@@ -342,5 +345,11 @@ deploy_one_channel() {
   mem_free=$(free -m | awk '/^Mem:/{print $7}')
   log "💾 حافظه در دسترس بعد از کانال $ch: ${mem_free}MB"
 
-  success "کانال $ch کامل deploy شد"
+  if [ "$INSTALLED_FAIL" -gt 0 ]; then
+    log "خطا: کانال $ch — $INSTALLED_OK نصب موفق، $INSTALLED_FAIL ناموفق:$FAILED_LIST"
+    log "  اگر پیام «directory not found» دیدید، مسیر CHAINCODE_DIR با"
+    log "  محل خروجی generateChaincodes_hospital.sh نمی‌خواند."
+    return 1
+  fi
+  success "کانال $ch کامل deploy شد — $INSTALLED_OK قرارداد"
 }

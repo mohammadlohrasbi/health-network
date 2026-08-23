@@ -458,7 +458,15 @@ if (s === before) {
 // اعتبارسنجی: هر کانالی که در پیش‌فرض یا مثال‌ها آمده باید واقعاً
 // در نگاشت باشد. اگر نبود، گام ۷ کانالی می‌سازد که قرارداد ندارد.
 const body = fs.readFileSync(p, 'utf8');
-const named = [...new Set([...body.matchAll(/\b(\w+channel)\b/g)].map((m) => m[1]))];
+// نام‌های 6G که در LEGACY_CHANNEL ترجمه می‌شوند عمداً ناموجودند،
+// و `resolve_channel` اصلاً نام کانال نیست — الگوی \w+channel
+// هر دو را می‌گیرد. هر دو مستثنا.
+const mapSrc = fs.readFileSync(
+  path.join(root, 'scripts', 'channel_contract_map.sh'), 'utf8');
+const legacy = new Set(
+  [...mapSrc.matchAll(/\[(\w+channel)\]=\w+channel/g)].map((m) => m[1]));
+const named = [...new Set([...body.matchAll(/\b(\w+channel)\b/g)].map((m) => m[1]))]
+  .filter((c) => c !== 'resolve_channel' && !legacy.has(c));
 const bad = named.filter((c) => !(c in CHANNEL_CHAINCODE_MAP));
 if (bad.length) {
   console.error('  ✗ کانال‌های ناموجود در bootstrap:', bad.join(', '));
@@ -693,6 +701,99 @@ if [ "$DRY_RUN" != "1" ]; then
   echo "  generateChaincodes_hospital.sh، hospital-signatures.json و contract-fn-map.js بازتولید شدند"
 fi
 
+
+# ── ۱۹. دور دوازدهم: ترجمه نام کانال‌های 6G ─────────────
+# دور هشتم اعتبارسنجی زودهنگام اضافه کرد که کانال ناشناخته را
+# پیش از پاک‌سازی می‌گیرد — درست و لازم. ولی در عمل کاربر مدام
+# `CHANNELS="datachannel"` را از یادداشت قدیمی کپی می‌کند و هر
+# بار متوقف می‌شود.
+#
+# توقف تنها راه نیست: نام‌های 6G معادل مشخصی در دامنه سلامت
+# دارند (LEGACY_CHANNEL در channel_contract_map.sh). پس ترجمه
+# می‌شوند و یک هشدار صریح چاپ می‌شود. نام واقعاً ناشناخته
+# همچنان متوقف می‌کند.
+log "دور دوازدهم: ترجمه نام کانال‌های 6G"
+
+if [ "$DRY_RUN" != "1" ] && [ -f "$ROOT_DIR/scripts/bootstrap-secure.sh" ]; then
+  mkdir -p "$BK/scripts"
+  cp "$ROOT_DIR/scripts/bootstrap-secure.sh" "$BK/scripts/bootstrap-secure.alias.sh"
+  node - "$ROOT_DIR" <<'NODEEOF'
+const fs = require('fs');
+const path = require('path');
+const p = path.join(process.argv[2], 'scripts', 'bootstrap-secure.sh');
+let s = fs.readFileSync(p, 'utf8');
+
+if (s.includes('resolve_channel')) { console.log('  از قبل اعمال شده'); process.exit(0); }
+
+// بلوک اعتبارسنجی دور هشتم را با نسخه‌ای که ترجمه هم می‌کند عوض کن
+const re = /if \[ "\$CHANNELS" != "all" \]; then\n[\s\S]*?\n    ok "کانال‌ها معتبرند: \$CHANNELS"\nfi\n/;
+if (!re.test(s)) { console.error('  هشدار: بلوک اعتبارسنجی کانال پیدا نشد'); process.exit(0); }
+
+const BLOCK = `if [ "$CHANNELS" != "all" ]; then
+    WANTED="$CHANNELS"
+    # shellcheck source=/dev/null
+    source "$SCRIPTS/channel_contract_map.sh"
+    RESOLVED=""
+    BAD=""
+    for want in $WANTED; do
+        got="$(resolve_channel "$want")" || { BAD="$BAD $want"; continue; }
+        # تکراری نشود: datachannel و sessionchannel هر دو به
+        # admissionchannel ترجمه می‌شوند.
+        case " $RESOLVED " in *" $got "*) ;; *) RESOLVED="$RESOLVED $got";; esac
+    done
+    if [ -n "$BAD" ]; then
+        echo
+        warn "کانال ناشناخته:$BAD"
+        warn "هیچ کاری انجام نشد — شبکه فعلی دست‌نخورده است."
+        echo
+        echo "  کانال‌های موجود:"
+        printf '    %s\\n' "\${CHANNELS[@]}"
+        echo
+        echo "  پیشنهاد برای اولین اجرا:"
+        echo "    CHANNELS=\\"admissionchannel auditchannel\\" ./bootstrap-secure.sh"
+        exit 1
+    fi
+    CHANNELS="\${RESOLVED# }"
+    ok "کانال‌ها معتبرند: $CHANNELS"
+fi
+`;
+s = s.replace(re, BLOCK);
+fs.writeFileSync(p, s);
+console.log('  ترجمه نام کانال به bootstrap اضافه شد');
+NODEEOF
+  bash -n "$ROOT_DIR/scripts/bootstrap-secure.sh" || { echo "  ✗ نحو bootstrap شکست"; exit 1; }
+fi
+
+# seed-hospital.sh هم همان ترجمه را بگیرد، وگرنه دستور
+# `./seed-hospital.sh datachannel` همچنان می‌افتد.
+if [ "$DRY_RUN" != "1" ] && ! grep -q 'resolve_channel' "$ROOT_DIR/scripts/seed-hospital.sh"; then
+  cp "$ROOT_DIR/scripts/seed-hospital.sh" "$BK/scripts/seed-hospital.alias.sh"
+  node - "$ROOT_DIR" <<'NODEEOF'
+const fs = require('fs');
+const path = require('path');
+const p = path.join(process.argv[2], 'scripts', 'seed-hospital.sh');
+let s = fs.readFileSync(p, 'utf8');
+const re = /if \[ "\$#" -gt 0 \] && \[ "\$1" != "all" \]; then\n[\s\S]*?\n  CHANNELS=\("\$\{REQUESTED\[@\]\}"\)\nfi/;
+if (!re.test(s)) { console.error('  هشدار: بلوک کانال seed پیدا نشد'); process.exit(0); }
+s = s.replace(re, `if [ "$#" -gt 0 ] && [ "$1" != "all" ]; then
+  RESOLVED=()
+  for want in "$@"; do
+    if got="$(resolve_channel "$want")"; then
+      case " \${RESOLVED[*]:-} " in *" $got "*) ;; *) RESOLVED+=("$got");; esac
+    else
+      echo "خطا: کانال ناشناخته '$want'. کانال‌های موجود:" >&2
+      printf '  %s\\n' "\${CHANNELS[@]}" >&2
+      exit 1
+    fi
+  done
+  CHANNELS=("\${RESOLVED[@]}")
+fi`);
+fs.writeFileSync(p, s);
+console.log('  ترجمه نام کانال به seed-hospital اضافه شد');
+NODEEOF
+  bash -n "$ROOT_DIR/scripts/seed-hospital.sh" || { echo "  ✗ نحو seed-hospital شکست"; exit 1; }
+fi
+
 # ── تأیید ───────────────────────────────────────────────
 if [ "$DRY_RUN" = "1" ]; then
   log "DRY_RUN — هیچ تغییری اعمال نشد"
@@ -759,8 +860,11 @@ check "bootstrap مسیر نسبی به پوشه‌های ریشه ندارد" \
 # ROOT_DIR باید صریح پاس شود، وگرنه اسکریپت پیش‌فرض
 # /root/health-network را می‌گیرد و روی «network.sh نیست» می‌افتد
 # پیش از اینکه به اعتبارسنجی کانال برسد.
-check "bootstrap کانال نامعتبر را پیش از پاک‌سازی می‌گیرد" \
+check "نام کانال 6G ترجمه می‌شود نه رد" \
       "cd '$ROOT_DIR/scripts' && out=\$(ROOT_DIR='$ROOT_DIR' CHANNELS=datachannel bash bootstrap-secure.sh 2>&1) ; \
+       echo \"\$out\" | grep -q 'نام پروژه 6G است' && echo \"\$out\" | grep -q 'admissionchannel'"
+check "bootstrap کانال نامعتبر را پیش از پاک‌سازی می‌گیرد" \
+      "cd '$ROOT_DIR/scripts' && out=\$(ROOT_DIR='$ROOT_DIR' CHANNELS=totally-bogus bash bootstrap-secure.sh 2>&1) ; \
        echo \"\$out\" | grep -q 'کانال ناشناخته' && ! echo \"\$out\" | grep -qE 'پاک‌سازی|ادامه؟'"
 # 🔴 این بررسی کل کلاس را می‌گیرد: هر جزئی که مسیر chaincode را
 # می‌داند باید همان مسیر را بگوید. ناهمخوانی مولد و زیرساخت تا
@@ -787,13 +891,18 @@ check "deploy نصب ناموفق را موفق گزارش نمی‌کند" \
       "grep -q 'INSTALLED_FAIL' '$ROOT_DIR/scripts/deploy_functions.sh'"
 check "کانال ناشناخته در deploy سکوتِ موفق نمی‌دهد" \
       "! grep -q 'قراردادی ندارد\"; return 0' '$ROOT_DIR/scripts/deploy_functions.sh'"
+# هر نام کانالی که bootstrap **به کار می‌برد** باید در نگاشت
+# باشد. نام‌های 6G که فقط در LEGACY_CHANNEL به عنوان کلید ترجمه
+# می‌آیند مستثنا هستند — آنها عمداً ناموجودند.
 check "کانال‌های bootstrap در نگاشت وجود دارند" \
       "cd '$ROOT_DIR/server' && node -e '
         const fs=require(\"fs\");
         const {CHANNEL_CHAINCODE_MAP}=require(\"./contract-fn-map\");
+        const map=fs.readFileSync(\"../scripts/channel_contract_map.sh\",\"utf8\");
+        const legacy=new Set([...map.matchAll(/\\[(\\w+channel)\\]=\\w+channel/g)].map(m=>m[1]));
         const b=fs.readFileSync(\"../scripts/bootstrap-secure.sh\",\"utf8\");
         const bad=[...new Set([...b.matchAll(/\\b(\\w+channel)\\b/g)].map(m=>m[1]))]
-          .filter(c=>!(c in CHANNEL_CHAINCODE_MAP));
+          .filter(c=>c!==\"resolve_channel\" && !(c in CHANNEL_CHAINCODE_MAP) && !legacy.has(c));
         if(bad.length){console.error(bad);process.exit(1);}'"
 # 🔴 این بررسی کل کلاس خطا را می‌گیرد، نه یک نمونه را. دو باگ
 # آخر (generateChaincodes_part*.sh و update-fn-map.js) هر دو

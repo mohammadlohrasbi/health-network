@@ -974,7 +974,13 @@ let out = `#!/bin/bash
 set -euo pipefail
 
 ROOT_DIR="\${ROOT_DIR:-/root/health-network}"
-CC_DIR="\${CC_DIR:-\$ROOT_DIR/chaincode}"
+# 🔴 مسیر باید با زیرساخت بخواند، نه برعکس.
+# deploy-staged.sh و network.sh هر دو
+# CHAINCODE_DIR="$SCRIPTS_DIR/chaincode" دارند. نسخه اول این مولد
+# در $ROOT_DIR/chaincode می‌نوشت، پس نصب با
+# «directory not found: .../scripts/chaincode/RequestAdmission»
+# شکست می‌خورد در حالی که هر ۱۱۰ قرارداد درست ساخته شده بودند.
+CC_DIR="\${CC_DIR:-\$ROOT_DIR/scripts/chaincode}"
 mkdir -p "\$CC_DIR"
 
 # ── shared.go یک بار نوشته می‌شود و در هر پوشه کپی می‌شود ──

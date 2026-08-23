@@ -833,10 +833,20 @@ ensure_go_sum() {
 
   # اگر قرارداد دیگری go.sum دارد، همان را کپی کن — همه دقیقاً
   # یک import دارند، پس go.sum یکی است و این از tidy سریع‌تر است.
-  local donor
+  #
+  # ⚠️ go.mod هم باید بیاید. `go mod tidy` بلوک require را با
+  # وابستگی‌های غیرمستقیم پر می‌کند؛ اگر فقط go.sum کپی شود،
+  # build می‌گوید «updates to go.mod needed». تنها تفاوت مجاز
+  # خط module است.
+  local donor donor_dir modname
   donor=$(find "$CHAINCODE_DIR" -mindepth 2 -maxdepth 2 -name go.sum -print -quit 2>/dev/null)
   if [ -n "$donor" ]; then
-    cp "$donor" "$dir/go.sum" && return 0
+    donor_dir=$(dirname "$donor")
+    modname=$(basename "$dir" | tr "[:upper:]" "[:lower:]")
+    cp "$donor" "$dir/go.sum" || return 1
+    [ -f "$donor_dir/go.mod" ] \
+      && sed "1s|^module .*|module $modname|" "$donor_dir/go.mod" > "$dir/go.mod"
+    return 0
   fi
 
   echo "  [build] $name: go.sum نیست — go mod tidy..."
@@ -959,9 +969,17 @@ check "bootstrap کانال نامعتبر را پیش از پاک‌سازی م
 # eval اجرا می‌کند، پس یک `exit` بی‌محافظ کل patch-domain.sh را
 # می‌بندد و بررسی‌های بعدی هرگز اجرا نمی‌شوند (با کد خروج ۰،
 # یعنی بی‌صدا موفق به نظر می‌رسد).
-check "مولد go.sum را به همه قراردادها توزیع می‌کند" \
-      "grep -q 'توزیع go.sum' '$ROOT_DIR/scripts/generateChaincodes_hospital.sh' \
-       && grep -q 'go mod tidy' '$ROOT_DIR/scripts/generateChaincodes_hospital.sh'"
+# 🔴 توزیع باید **هر دو** فایل را ببرد. نسخه‌ای که فقط go.sum
+# می‌برد روی سرور با «updates to go.mod needed» افتاد، چون
+# `go mod tidy` بلوک require را با وابستگی غیرمستقیم پر می‌کند.
+check "مولد go.mod و go.sum را به همه قراردادها توزیع می‌کند" \
+      "grep -q 'توزیع go.mod و go.sum' '$ROOT_DIR/scripts/generateChaincodes_hospital.sh' \
+       && grep -q 'go mod tidy' '$ROOT_DIR/scripts/generateChaincodes_hospital.sh' \
+       && grep -q 'MOD=\"\\\$FIRST/go.mod\"' '$ROOT_DIR/scripts/generateChaincodes_hospital.sh'"
+check "توزیع خط module هر قرارداد را حفظ می‌کند" \
+      "grep -q 'خط module اشتباه دارد' '$ROOT_DIR/scripts/generateChaincodes_hospital.sh'"
+check "خوددرمانی go.mod را هم همگام می‌کند" \
+      "grep -q 'donor_dir/go.mod' '$ROOT_DIR/scripts/deploy_functions.sh'"
 check "بسته‌بندی نبود go.sum را خودش درمان می‌کند" \
       "grep -q 'ensure_go_sum' '$ROOT_DIR/scripts/deploy_functions.sh'"
 check "فایل‌های تولیدشده با مولدشان همگام‌اند" \

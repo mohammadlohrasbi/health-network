@@ -402,9 +402,15 @@ s = s.replace(
   'bash generateChaincodes_hospital.sh \\\n'
   + '        || die "generateChaincodes_hospital.sh شکست خورد — جداگانه اجرا کنید تا خطای کامپایل دیده شود"');
 
-// ۲) شمارش قراردادها
+// ۲) شمارش قراردادها.
+// 🔴 مسیر هم غلط بود: bootstrap در گام ۹۵ `cd "$SCRIPTS"` می‌کند،
+// پس `ls chaincode` به scripts/chaincode نگاه می‌کرد که وجود
+// ندارد → همیشه صفر → die، در حالی که هر ۱۱۰ قرارداد در
+// $ROOT_DIR/chaincode درست ساخته و کامپایل شده بودند.
+s = s.replace(/COUNT=\$\(ls chaincode 2>\/dev\/null \| wc -l\)/,
+  'COUNT=$(find "$ROOT_DIR/chaincode" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)');
 s = s.replace(/\[ "\$COUNT" -eq 86 \] \|\| die "\$COUNT قرارداد تولید شد، انتظار ۸۶"/,
-  `[ "$COUNT" -eq ${total} ] || die "$COUNT قرارداد تولید شد، انتظار ${total}"`);
+  `[ "$COUNT" -eq ${total} ] || die "$COUNT قرارداد در $ROOT_DIR/chaincode یافت شد، انتظار ${total}"`);
 s = s.replace(/ok "۸۶ قرارداد — و اسکریپت مکانی خودش کامپایل را بررسی کرد"/,
   `ok "${total} قرارداد — اسکریپت خودش کامپایل را بررسی کرد"`);
 
@@ -551,6 +557,13 @@ check "bootstrap به فایل ناموجود ارجاع نمی‌دهد" \
          '$ROOT_DIR/scripts/bootstrap-secure.sh'"
 check "همه اسکریپت‌ها نحو درست دارند" \
       "cd '$ROOT_DIR' && for f in scripts/*.sh server/*.sh install.sh; do bash -n \"\$f\" || exit 1; done"
+# 🔴 bootstrap پس از `cd "$SCRIPTS"` اجرا می‌شود، پس هر مسیر
+# نسبی به scripts/ اشاره می‌کند نه به ریشه پروژه. باگ شمارش
+# قراردادها دقیقاً همین بود: `ls chaincode` به scripts/chaincode
+# نگاه می‌کرد. این بررسی هر مسیر نسبی مشکوک را می‌گیرد.
+check "bootstrap مسیر نسبی به پوشه‌های ریشه ندارد" \
+      "! grep -nE '(ls|find|cat|cd|test|\\[) +(chaincode|config|server|public|reference|channel-artifacts)([ /\"]|\\\$)' \
+         '$ROOT_DIR/scripts/bootstrap-secure.sh'"
 check "کانال‌های bootstrap در نگاشت وجود دارند" \
       "cd '$ROOT_DIR/server' && node -e '
         const fs=require(\"fs\");

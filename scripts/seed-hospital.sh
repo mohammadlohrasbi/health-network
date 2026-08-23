@@ -29,6 +29,29 @@ TRACK_BEDS="${TRACK_BEDS:-0}"
 DRY_RUN="${DRY_RUN:-0}"
 
 source "$SCRIPT_DIR/channel_contract_map.sh"
+
+# ── محدود کردن به کانال‌های خواسته‌شده ──────────────────
+# bootstrap-secure.sh این اسکریپت را با یک نام کانال صدا می‌زند
+# (`./seed-hospital.sh admissionchannel`). نسخه اول آرگومان را
+# نادیده می‌گرفت و هر ۲۰ کانال را بذرکاری می‌کرد — یعنی صدها
+# فراخوانی روی کانال‌هایی که هنوز ساخته نشده‌اند، همه ناموفق، و
+# اسکریپت با exit 1 راه‌اندازی را می‌خواباند در حالی که کانال
+# واقعی درست بذرکاری شده بود.
+if [ "$#" -gt 0 ] && [ "$1" != "all" ]; then
+  REQUESTED=("$@")
+  for want in "${REQUESTED[@]}"; do
+    found=0
+    for ch in "${CHANNELS[@]}"; do
+      [ "$ch" = "$want" ] && found=1 && break
+    done
+    if [ "$found" = "0" ]; then
+      echo "خطا: کانال ناشناخته '$want'. کانال‌های موجود:" >&2
+      printf '  %s\n' "${CHANNELS[@]}" >&2
+      exit 1
+    fi
+  done
+  CHANNELS=("${REQUESTED[@]}")
+fi
 source "$SCRIPT_DIR/deploy_functions.sh" 2>/dev/null || true
 
 log()  { echo "[$(date +'%H:%M:%S')] $*"; }
@@ -56,6 +79,7 @@ if [ -f "$CATALOG" ] && command -v node >/dev/null; then
 fi
 
 log "بذر=$SEED شبکه=${GRID_M}m مراکز=$FACILITIES ردیابی_تخت=$TRACK_BEDS"
+log "کانال‌ها: ${CHANNELS[*]}"
 
 OK=0; FAILED=0; SKIPPED=0
 FAILED_LIST=""

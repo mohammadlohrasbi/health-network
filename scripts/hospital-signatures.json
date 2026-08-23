@@ -1,0 +1,2211 @@
+{
+  "generatedBy": "gen-hospital-contracts.js",
+  "channels": [
+    "patientchannel",
+    "clinicalchannel",
+    "admissionchannel",
+    "bedchannel",
+    "surgerychannel",
+    "equipmentchannel",
+    "pharmacychannel",
+    "bloodchannel",
+    "labchannel",
+    "imagingchannel",
+    "staffchannel",
+    "referralchannel",
+    "emergencychannel",
+    "insurancechannel",
+    "supplychannel",
+    "marketchannel",
+    "consentchannel",
+    "auditchannel",
+    "compliancechannel",
+    "analyticschannel"
+  ],
+  "channelContracts": {
+    "patientchannel": [
+      "RegisterPatient",
+      "UpdateDemographics",
+      "LinkNationalIndex",
+      "MergeDuplicateRecord",
+      "DeactivatePatient",
+      "QueryPatientSummary"
+    ],
+    "clinicalchannel": [
+      "RecordDiagnosis",
+      "AppendProgressNote",
+      "RecordVitalSigns",
+      "RecordAllergy",
+      "RecordProcedure",
+      "RecordDischargeSummary",
+      "CreateMedicalRecord"
+    ],
+    "admissionchannel": [
+      "RequestAdmission",
+      "TriagePatient",
+      "AssignPriority",
+      "AdmitPatient",
+      "TransferWard",
+      "DischargePatient",
+      "RecordEdArrival"
+    ],
+    "bedchannel": [
+      "AllocateBed",
+      "ReleaseBed",
+      "ReserveIcuBed",
+      "ReportBedCensus",
+      "RequestBedCapacity"
+    ],
+    "surgerychannel": [
+      "ScheduleSurgery",
+      "ReserveOrSlot",
+      "CancelSurgery",
+      "RecordSurgicalOutcome",
+      "RequestEmergencyOr"
+    ],
+    "equipmentchannel": [
+      "RegisterDevice",
+      "ReserveDevice",
+      "ReleaseDevice",
+      "ReportDeviceFault",
+      "LogDeviceMaintenance"
+    ],
+    "pharmacychannel": [
+      "PrescribeDrug",
+      "DispenseDrug",
+      "VerifyDrugSafety",
+      "RegisterDrugBatch",
+      "RecallDrugBatch",
+      "ReturnDrug",
+      "CheckDrugInteraction"
+    ],
+    "bloodchannel": [
+      "RegisterBloodUnit",
+      "RequestBloodUnit",
+      "IssueBloodUnit",
+      "CrossMatchScreen",
+      "ReturnBloodUnit",
+      "ReportBloodInventory"
+    ],
+    "labchannel": [
+      "OrderLabTest",
+      "RecordLabResult",
+      "RequestLabCapacity",
+      "FlagCriticalResult"
+    ],
+    "imagingchannel": [
+      "OrderImaging",
+      "RecordImagingReport",
+      "RequestImagingSlot"
+    ],
+    "staffchannel": [
+      "RegisterStaff",
+      "AssignShift",
+      "RequestOnCall",
+      "RecordCredential",
+      "RevokeCredential"
+    ],
+    "referralchannel": [
+      "CreateReferral",
+      "AcceptReferral",
+      "RejectReferral",
+      "TransferPatient",
+      "RequestSpecialistOpinion",
+      "CloseReferral"
+    ],
+    "emergencychannel": [
+      "DispatchAmbulance",
+      "AssignAmbulanceDestination",
+      "ReportMassCasualty",
+      "ActivateCrisisProtocol",
+      "ReleaseAmbulance",
+      "RequestPrehospitalDestination"
+    ],
+    "insurancechannel": [
+      "VerifyEligibility",
+      "SubmitClaim",
+      "AdjudicateClaim",
+      "SettleClaim",
+      "RejectClaim",
+      "RecordCoveragePolicy"
+    ],
+    "supplychannel": [
+      "RegisterSupplyItem",
+      "RecordShipment",
+      "ReceiveShipment",
+      "ReportStockLevel",
+      "RequestRestock"
+    ],
+    "marketchannel": [
+      "MintResourceToken",
+      "TransferToken",
+      "BalanceOf",
+      "ShareBedCapacity",
+      "TradeOrSlot",
+      "LendStaffHours"
+    ],
+    "consentchannel": [
+      "GrantConsent",
+      "RevokeConsent",
+      "CheckConsent",
+      "ShareDataWithProvider",
+      "LogDataAccess",
+      "EmergencyOverrideAccess"
+    ],
+    "auditchannel": [
+      "LogPatientAudit",
+      "LogClinicalAudit",
+      "LogAccessAudit",
+      "LogDrugAudit",
+      "LogBloodAudit",
+      "LogFinancialAudit",
+      "LogSystemAudit"
+    ],
+    "compliancechannel": [
+      "RecordAccreditation",
+      "ReportIncident",
+      "RecordQualityIndicator",
+      "VerifyProtocolAdherence"
+    ],
+    "analyticschannel": [
+      "ReportOccupancy",
+      "ReportWaitTime",
+      "ReportOutcomeIndicator",
+      "ReportEpidemicSignal"
+    ]
+  },
+  "contracts": {
+    "RegisterPatient": {
+      "fn": "RegisterPatient",
+      "kind": "ledger",
+      "channels": [
+        "patientchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "UpdateDemographics": {
+      "fn": "UpdateDemographics",
+      "kind": "ledger",
+      "channels": [
+        "patientchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "LinkNationalIndex": {
+      "fn": "LinkNationalIndex",
+      "kind": "ledger",
+      "channels": [
+        "patientchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "MergeDuplicateRecord": {
+      "fn": "MergeDuplicateRecord",
+      "kind": "ledger",
+      "channels": [
+        "patientchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "DeactivatePatient": {
+      "fn": "DeactivatePatient",
+      "kind": "ledger",
+      "channels": [
+        "patientchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "QueryPatientSummary": {
+      "fn": "QueryPatientSummary",
+      "kind": "ledger",
+      "channels": [
+        "patientchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "RecordDiagnosis": {
+      "fn": "RecordDiagnosis",
+      "kind": "ledger",
+      "channels": [
+        "clinicalchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "AppendProgressNote": {
+      "fn": "AppendProgressNote",
+      "kind": "ledger",
+      "channels": [
+        "clinicalchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "RecordVitalSigns": {
+      "fn": "RecordVitalSigns",
+      "kind": "ledger",
+      "channels": [
+        "clinicalchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "RecordAllergy": {
+      "fn": "RecordAllergy",
+      "kind": "ledger",
+      "channels": [
+        "clinicalchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "RecordProcedure": {
+      "fn": "RecordProcedure",
+      "kind": "ledger",
+      "channels": [
+        "clinicalchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "RecordDischargeSummary": {
+      "fn": "RecordDischargeSummary",
+      "kind": "ledger",
+      "channels": [
+        "clinicalchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "CreateMedicalRecord": {
+      "fn": "CreateMedicalRecord",
+      "kind": "ledger",
+      "channels": [
+        "clinicalchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "RequestAdmission": {
+      "fn": "RequestAdmission",
+      "kind": "selector",
+      "channels": [
+        "admissionchannel"
+      ],
+      "params": [
+        "id",
+        "patientCommit",
+        "x",
+        "y",
+        "rr",
+        "spo2",
+        "onOxygen",
+        "sbp",
+        "hr",
+        "avpu",
+        "tempMilliC",
+        "flags",
+        "ageYears"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "تریاژ + انتخاب مرکز؛ سه دلیل رد. نرخ پذیرش خودش متریک است."
+    },
+    "TriagePatient": {
+      "fn": "TriagePatient",
+      "kind": "selector",
+      "channels": [
+        "admissionchannel"
+      ],
+      "params": [
+        "id",
+        "patientCommit",
+        "x",
+        "y",
+        "rr",
+        "spo2",
+        "onOxygen",
+        "sbp",
+        "hr",
+        "avpu",
+        "tempMilliC",
+        "flags",
+        "ageYears"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "تریاژ + انتخاب مرکز؛ سه دلیل رد. نرخ پذیرش خودش متریک است."
+    },
+    "AssignPriority": {
+      "fn": "AssignPriority",
+      "kind": "selector",
+      "channels": [
+        "admissionchannel"
+      ],
+      "params": [
+        "id",
+        "patientCommit",
+        "x",
+        "y",
+        "rr",
+        "spo2",
+        "onOxygen",
+        "sbp",
+        "hr",
+        "avpu",
+        "tempMilliC",
+        "flags",
+        "ageYears"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "تریاژ + انتخاب مرکز؛ سه دلیل رد. نرخ پذیرش خودش متریک است."
+    },
+    "AdmitPatient": {
+      "fn": "AdmitPatient",
+      "kind": "selector",
+      "channels": [
+        "admissionchannel"
+      ],
+      "params": [
+        "id",
+        "patientCommit",
+        "x",
+        "y",
+        "rr",
+        "spo2",
+        "onOxygen",
+        "sbp",
+        "hr",
+        "avpu",
+        "tempMilliC",
+        "flags",
+        "ageYears"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "تریاژ + انتخاب مرکز؛ سه دلیل رد. نرخ پذیرش خودش متریک است."
+    },
+    "TransferWard": {
+      "fn": "TransferWard",
+      "kind": "selector",
+      "channels": [
+        "admissionchannel"
+      ],
+      "params": [
+        "id",
+        "patientCommit",
+        "x",
+        "y",
+        "rr",
+        "spo2",
+        "onOxygen",
+        "sbp",
+        "hr",
+        "avpu",
+        "tempMilliC",
+        "flags",
+        "ageYears"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "تریاژ + انتخاب مرکز؛ سه دلیل رد. نرخ پذیرش خودش متریک است."
+    },
+    "DischargePatient": {
+      "fn": "DischargePatient",
+      "kind": "ledger",
+      "channels": [
+        "admissionchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "RecordEdArrival": {
+      "fn": "RecordEdArrival",
+      "kind": "selector",
+      "channels": [
+        "admissionchannel"
+      ],
+      "params": [
+        "id",
+        "patientCommit",
+        "x",
+        "y",
+        "rr",
+        "spo2",
+        "onOxygen",
+        "sbp",
+        "hr",
+        "avpu",
+        "tempMilliC",
+        "flags",
+        "ageYears"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "تریاژ + انتخاب مرکز؛ سه دلیل رد. نرخ پذیرش خودش متریک است."
+    },
+    "AllocateBed": {
+      "fn": "AllocateBed",
+      "kind": "selector",
+      "channels": [
+        "bedchannel"
+      ],
+      "params": [
+        "id",
+        "patientCommit",
+        "x",
+        "y",
+        "rr",
+        "spo2",
+        "onOxygen",
+        "sbp",
+        "hr",
+        "avpu",
+        "tempMilliC",
+        "flags",
+        "ageYears"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "تریاژ + انتخاب مرکز؛ سه دلیل رد. نرخ پذیرش خودش متریک است."
+    },
+    "ReleaseBed": {
+      "fn": "ReleaseBed",
+      "kind": "ledger",
+      "channels": [
+        "bedchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "ReserveIcuBed": {
+      "fn": "ReserveIcuBed",
+      "kind": "selector",
+      "channels": [
+        "bedchannel"
+      ],
+      "params": [
+        "id",
+        "patientCommit",
+        "x",
+        "y",
+        "rr",
+        "spo2",
+        "onOxygen",
+        "sbp",
+        "hr",
+        "avpu",
+        "tempMilliC",
+        "flags",
+        "ageYears"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "تریاژ + انتخاب مرکز؛ سه دلیل رد. نرخ پذیرش خودش متریک است."
+    },
+    "ReportBedCensus": {
+      "fn": "ReportBedCensus",
+      "kind": "ledger",
+      "channels": [
+        "bedchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "RequestBedCapacity": {
+      "fn": "RequestBedCapacity",
+      "kind": "selector",
+      "channels": [
+        "bedchannel"
+      ],
+      "params": [
+        "id",
+        "patientCommit",
+        "x",
+        "y",
+        "rr",
+        "spo2",
+        "onOxygen",
+        "sbp",
+        "hr",
+        "avpu",
+        "tempMilliC",
+        "flags",
+        "ageYears"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "تریاژ + انتخاب مرکز؛ سه دلیل رد. نرخ پذیرش خودش متریک است."
+    },
+    "ScheduleSurgery": {
+      "fn": "ScheduleSurgery",
+      "kind": "selector",
+      "channels": [
+        "surgerychannel"
+      ],
+      "params": [
+        "id",
+        "patientCommit",
+        "x",
+        "y",
+        "rr",
+        "spo2",
+        "onOxygen",
+        "sbp",
+        "hr",
+        "avpu",
+        "tempMilliC",
+        "flags",
+        "ageYears"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "تریاژ + انتخاب مرکز؛ سه دلیل رد. نرخ پذیرش خودش متریک است."
+    },
+    "ReserveOrSlot": {
+      "fn": "ReserveOrSlot",
+      "kind": "selector",
+      "channels": [
+        "surgerychannel"
+      ],
+      "params": [
+        "id",
+        "patientCommit",
+        "x",
+        "y",
+        "rr",
+        "spo2",
+        "onOxygen",
+        "sbp",
+        "hr",
+        "avpu",
+        "tempMilliC",
+        "flags",
+        "ageYears"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "تریاژ + انتخاب مرکز؛ سه دلیل رد. نرخ پذیرش خودش متریک است."
+    },
+    "CancelSurgery": {
+      "fn": "CancelSurgery",
+      "kind": "ledger",
+      "channels": [
+        "surgerychannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "RecordSurgicalOutcome": {
+      "fn": "RecordSurgicalOutcome",
+      "kind": "ledger",
+      "channels": [
+        "surgerychannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "RequestEmergencyOr": {
+      "fn": "RequestEmergencyOr",
+      "kind": "selector",
+      "channels": [
+        "surgerychannel"
+      ],
+      "params": [
+        "id",
+        "patientCommit",
+        "x",
+        "y",
+        "rr",
+        "spo2",
+        "onOxygen",
+        "sbp",
+        "hr",
+        "avpu",
+        "tempMilliC",
+        "flags",
+        "ageYears"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "تریاژ + انتخاب مرکز؛ سه دلیل رد. نرخ پذیرش خودش متریک است."
+    },
+    "RegisterDevice": {
+      "fn": "RegisterDevice",
+      "kind": "ledger",
+      "channels": [
+        "equipmentchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "ReserveDevice": {
+      "fn": "ReserveDevice",
+      "kind": "selector",
+      "channels": [
+        "equipmentchannel"
+      ],
+      "params": [
+        "id",
+        "patientCommit",
+        "x",
+        "y",
+        "rr",
+        "spo2",
+        "onOxygen",
+        "sbp",
+        "hr",
+        "avpu",
+        "tempMilliC",
+        "flags",
+        "ageYears"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "تریاژ + انتخاب مرکز؛ سه دلیل رد. نرخ پذیرش خودش متریک است."
+    },
+    "ReleaseDevice": {
+      "fn": "ReleaseDevice",
+      "kind": "ledger",
+      "channels": [
+        "equipmentchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "ReportDeviceFault": {
+      "fn": "ReportDeviceFault",
+      "kind": "ledger",
+      "channels": [
+        "equipmentchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "LogDeviceMaintenance": {
+      "fn": "LogDeviceMaintenance",
+      "kind": "ledger",
+      "channels": [
+        "equipmentchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "PrescribeDrug": {
+      "fn": "PrescribeDrug",
+      "kind": "guarded",
+      "channels": [
+        "pharmacychannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "condition",
+        "threshold"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "تصمیم قطعی؛ می‌تواند رد کند."
+    },
+    "DispenseDrug": {
+      "fn": "DispenseDrug",
+      "kind": "guarded",
+      "channels": [
+        "pharmacychannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "condition",
+        "threshold"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "تصمیم قطعی؛ می‌تواند رد کند."
+    },
+    "VerifyDrugSafety": {
+      "fn": "VerifyDrugSafety",
+      "kind": "guarded",
+      "channels": [
+        "pharmacychannel"
+      ],
+      "params": [
+        "id",
+        "drugCode",
+        "drugClassMask",
+        "allergyMask",
+        "weightGrams",
+        "minPerKgMicro",
+        "maxPerKgMicro",
+        "orderedMicro",
+        "renalMilli",
+        "expirySec"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "آلرژی + دوز + انقضا؛ هر تخلف = رد."
+    },
+    "RegisterDrugBatch": {
+      "fn": "RegisterDrugBatch",
+      "kind": "ledger",
+      "channels": [
+        "pharmacychannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "RecallDrugBatch": {
+      "fn": "RecallDrugBatch",
+      "kind": "guarded",
+      "channels": [
+        "pharmacychannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "condition",
+        "threshold"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "تصمیم قطعی؛ می‌تواند رد کند."
+    },
+    "ReturnDrug": {
+      "fn": "ReturnDrug",
+      "kind": "ledger",
+      "channels": [
+        "pharmacychannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "CheckDrugInteraction": {
+      "fn": "CheckDrugInteraction",
+      "kind": "guarded",
+      "channels": [
+        "pharmacychannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "condition",
+        "threshold"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "تصمیم قطعی؛ می‌تواند رد کند."
+    },
+    "RegisterBloodUnit": {
+      "fn": "RegisterBloodUnit",
+      "kind": "ledger",
+      "channels": [
+        "bloodchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "RequestBloodUnit": {
+      "fn": "RequestBloodUnit",
+      "kind": "guarded",
+      "channels": [
+        "bloodchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "condition",
+        "threshold"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "تصمیم قطعی؛ می‌تواند رد کند."
+    },
+    "IssueBloodUnit": {
+      "fn": "IssueBloodUnit",
+      "kind": "guarded",
+      "channels": [
+        "bloodchannel"
+      ],
+      "params": [
+        "id",
+        "unitID",
+        "recipientCommit",
+        "donorType",
+        "recipientType",
+        "product",
+        "expirySec"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "غربال ABO/Rh + انقضا. ناسازگاری = رد."
+    },
+    "CrossMatchScreen": {
+      "fn": "CrossMatchScreen",
+      "kind": "guarded",
+      "channels": [
+        "bloodchannel"
+      ],
+      "params": [
+        "id",
+        "donorType",
+        "recipientType",
+        "product"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "غربال سازگاری؛ ناسازگار = رد."
+    },
+    "ReturnBloodUnit": {
+      "fn": "ReturnBloodUnit",
+      "kind": "ledger",
+      "channels": [
+        "bloodchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "ReportBloodInventory": {
+      "fn": "ReportBloodInventory",
+      "kind": "ledger",
+      "channels": [
+        "bloodchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "OrderLabTest": {
+      "fn": "OrderLabTest",
+      "kind": "ledger",
+      "channels": [
+        "labchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "RecordLabResult": {
+      "fn": "RecordLabResult",
+      "kind": "ledger",
+      "channels": [
+        "labchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "RequestLabCapacity": {
+      "fn": "RequestLabCapacity",
+      "kind": "selector",
+      "channels": [
+        "labchannel"
+      ],
+      "params": [
+        "id",
+        "patientCommit",
+        "x",
+        "y",
+        "rr",
+        "spo2",
+        "onOxygen",
+        "sbp",
+        "hr",
+        "avpu",
+        "tempMilliC",
+        "flags",
+        "ageYears"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "تریاژ + انتخاب مرکز؛ سه دلیل رد. نرخ پذیرش خودش متریک است."
+    },
+    "FlagCriticalResult": {
+      "fn": "FlagCriticalResult",
+      "kind": "guarded",
+      "channels": [
+        "labchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "condition",
+        "threshold"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "تصمیم قطعی؛ می‌تواند رد کند."
+    },
+    "OrderImaging": {
+      "fn": "OrderImaging",
+      "kind": "ledger",
+      "channels": [
+        "imagingchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "RecordImagingReport": {
+      "fn": "RecordImagingReport",
+      "kind": "ledger",
+      "channels": [
+        "imagingchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "RequestImagingSlot": {
+      "fn": "RequestImagingSlot",
+      "kind": "selector",
+      "channels": [
+        "imagingchannel"
+      ],
+      "params": [
+        "id",
+        "patientCommit",
+        "x",
+        "y",
+        "rr",
+        "spo2",
+        "onOxygen",
+        "sbp",
+        "hr",
+        "avpu",
+        "tempMilliC",
+        "flags",
+        "ageYears"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "تریاژ + انتخاب مرکز؛ سه دلیل رد. نرخ پذیرش خودش متریک است."
+    },
+    "RegisterStaff": {
+      "fn": "RegisterStaff",
+      "kind": "ledger",
+      "channels": [
+        "staffchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "AssignShift": {
+      "fn": "AssignShift",
+      "kind": "ledger",
+      "channels": [
+        "staffchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "RequestOnCall": {
+      "fn": "RequestOnCall",
+      "kind": "selector",
+      "channels": [
+        "staffchannel"
+      ],
+      "params": [
+        "id",
+        "patientCommit",
+        "x",
+        "y",
+        "rr",
+        "spo2",
+        "onOxygen",
+        "sbp",
+        "hr",
+        "avpu",
+        "tempMilliC",
+        "flags",
+        "ageYears"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "تریاژ + انتخاب مرکز؛ سه دلیل رد. نرخ پذیرش خودش متریک است."
+    },
+    "RecordCredential": {
+      "fn": "RecordCredential",
+      "kind": "ledger",
+      "channels": [
+        "staffchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "RevokeCredential": {
+      "fn": "RevokeCredential",
+      "kind": "ledger",
+      "channels": [
+        "staffchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "CreateReferral": {
+      "fn": "CreateReferral",
+      "kind": "selector",
+      "channels": [
+        "referralchannel"
+      ],
+      "params": [
+        "id",
+        "patientCommit",
+        "x",
+        "y",
+        "rr",
+        "spo2",
+        "onOxygen",
+        "sbp",
+        "hr",
+        "avpu",
+        "tempMilliC",
+        "flags",
+        "ageYears"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "تریاژ + انتخاب مرکز؛ سه دلیل رد. نرخ پذیرش خودش متریک است."
+    },
+    "AcceptReferral": {
+      "fn": "AcceptReferral",
+      "kind": "ledger",
+      "channels": [
+        "referralchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "RejectReferral": {
+      "fn": "RejectReferral",
+      "kind": "ledger",
+      "channels": [
+        "referralchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "TransferPatient": {
+      "fn": "TransferPatient",
+      "kind": "selector",
+      "channels": [
+        "referralchannel"
+      ],
+      "params": [
+        "id",
+        "patientCommit",
+        "x",
+        "y",
+        "rr",
+        "spo2",
+        "onOxygen",
+        "sbp",
+        "hr",
+        "avpu",
+        "tempMilliC",
+        "flags",
+        "ageYears"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "تریاژ + انتخاب مرکز؛ سه دلیل رد. نرخ پذیرش خودش متریک است."
+    },
+    "RequestSpecialistOpinion": {
+      "fn": "RequestSpecialistOpinion",
+      "kind": "selector",
+      "channels": [
+        "referralchannel"
+      ],
+      "params": [
+        "id",
+        "patientCommit",
+        "x",
+        "y",
+        "rr",
+        "spo2",
+        "onOxygen",
+        "sbp",
+        "hr",
+        "avpu",
+        "tempMilliC",
+        "flags",
+        "ageYears"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "تریاژ + انتخاب مرکز؛ سه دلیل رد. نرخ پذیرش خودش متریک است."
+    },
+    "CloseReferral": {
+      "fn": "CloseReferral",
+      "kind": "ledger",
+      "channels": [
+        "referralchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "DispatchAmbulance": {
+      "fn": "DispatchAmbulance",
+      "kind": "selector",
+      "channels": [
+        "emergencychannel"
+      ],
+      "params": [
+        "id",
+        "patientCommit",
+        "x",
+        "y",
+        "rr",
+        "spo2",
+        "onOxygen",
+        "sbp",
+        "hr",
+        "avpu",
+        "tempMilliC",
+        "flags",
+        "ageYears"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "تریاژ + انتخاب مرکز؛ سه دلیل رد. نرخ پذیرش خودش متریک است."
+    },
+    "AssignAmbulanceDestination": {
+      "fn": "AssignAmbulanceDestination",
+      "kind": "selector",
+      "channels": [
+        "emergencychannel"
+      ],
+      "params": [
+        "id",
+        "patientCommit",
+        "x",
+        "y",
+        "rr",
+        "spo2",
+        "onOxygen",
+        "sbp",
+        "hr",
+        "avpu",
+        "tempMilliC",
+        "flags",
+        "ageYears"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "تریاژ + انتخاب مرکز؛ سه دلیل رد. نرخ پذیرش خودش متریک است."
+    },
+    "ReportMassCasualty": {
+      "fn": "ReportMassCasualty",
+      "kind": "selector",
+      "channels": [
+        "emergencychannel"
+      ],
+      "params": [
+        "id",
+        "patientCommit",
+        "x",
+        "y",
+        "rr",
+        "spo2",
+        "onOxygen",
+        "sbp",
+        "hr",
+        "avpu",
+        "tempMilliC",
+        "flags",
+        "ageYears"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "تریاژ + انتخاب مرکز؛ سه دلیل رد. نرخ پذیرش خودش متریک است."
+    },
+    "ActivateCrisisProtocol": {
+      "fn": "ActivateCrisisProtocol",
+      "kind": "ledger",
+      "channels": [
+        "emergencychannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "ReleaseAmbulance": {
+      "fn": "ReleaseAmbulance",
+      "kind": "ledger",
+      "channels": [
+        "emergencychannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "RequestPrehospitalDestination": {
+      "fn": "RequestPrehospitalDestination",
+      "kind": "selector",
+      "channels": [
+        "emergencychannel"
+      ],
+      "params": [
+        "id",
+        "patientCommit",
+        "x",
+        "y",
+        "rr",
+        "spo2",
+        "onOxygen",
+        "sbp",
+        "hr",
+        "avpu",
+        "tempMilliC",
+        "flags",
+        "ageYears"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "تریاژ + انتخاب مرکز؛ سه دلیل رد. نرخ پذیرش خودش متریک است."
+    },
+    "VerifyEligibility": {
+      "fn": "VerifyEligibility",
+      "kind": "guarded",
+      "channels": [
+        "insurancechannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "condition",
+        "threshold"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "تصمیم قطعی؛ می‌تواند رد کند."
+    },
+    "SubmitClaim": {
+      "fn": "SubmitClaim",
+      "kind": "guarded",
+      "channels": [
+        "insurancechannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "condition",
+        "threshold"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "تصمیم قطعی؛ می‌تواند رد کند."
+    },
+    "AdjudicateClaim": {
+      "fn": "AdjudicateClaim",
+      "kind": "guarded",
+      "channels": [
+        "insurancechannel"
+      ],
+      "params": [
+        "id",
+        "claimID",
+        "tariffMicro",
+        "coverageMilli",
+        "deductibleMicro",
+        "remainingCapMicro"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "محاسبه سهم بیمه و بیمار."
+    },
+    "SettleClaim": {
+      "fn": "SettleClaim",
+      "kind": "ledger",
+      "channels": [
+        "insurancechannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "RejectClaim": {
+      "fn": "RejectClaim",
+      "kind": "ledger",
+      "channels": [
+        "insurancechannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "RecordCoveragePolicy": {
+      "fn": "RecordCoveragePolicy",
+      "kind": "ledger",
+      "channels": [
+        "insurancechannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "RegisterSupplyItem": {
+      "fn": "RegisterSupplyItem",
+      "kind": "ledger",
+      "channels": [
+        "supplychannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "RecordShipment": {
+      "fn": "RecordShipment",
+      "kind": "ledger",
+      "channels": [
+        "supplychannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "ReceiveShipment": {
+      "fn": "ReceiveShipment",
+      "kind": "ledger",
+      "channels": [
+        "supplychannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "ReportStockLevel": {
+      "fn": "ReportStockLevel",
+      "kind": "ledger",
+      "channels": [
+        "supplychannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "RequestRestock": {
+      "fn": "RequestRestock",
+      "kind": "selector",
+      "channels": [
+        "supplychannel"
+      ],
+      "params": [
+        "id",
+        "patientCommit",
+        "x",
+        "y",
+        "rr",
+        "spo2",
+        "onOxygen",
+        "sbp",
+        "hr",
+        "avpu",
+        "tempMilliC",
+        "flags",
+        "ageYears"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "تریاژ + انتخاب مرکز؛ سه دلیل رد. نرخ پذیرش خودش متریک است."
+    },
+    "MintResourceToken": {
+      "fn": "MintResourceToken",
+      "kind": "market",
+      "channels": [
+        "marketchannel"
+      ],
+      "params": [
+        "owner",
+        "amount"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "ایجاد توکن روی یک حساب."
+    },
+    "TransferToken": {
+      "fn": "TransferToken",
+      "kind": "market",
+      "channels": [
+        "marketchannel"
+      ],
+      "params": [
+        "from",
+        "to",
+        "amount"
+      ],
+      "needsSeed": true,
+      "tapeSafe": false,
+      "readOnly": false,
+      "requires": "فقط Caliper — دو حساب مشترک، Tape تعارض MVCC می‌سازد و آن را اشتباهاً موفق می‌شمارد",
+      "note": "انتقال بین دو حساب."
+    },
+    "BalanceOf": {
+      "fn": "BalanceOf",
+      "kind": "market",
+      "channels": [
+        "marketchannel"
+      ],
+      "params": [
+        "owner"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": true,
+      "note": "فقط خواندن."
+    },
+    "ShareBedCapacity": {
+      "fn": "ShareBedCapacity",
+      "kind": "market",
+      "channels": [
+        "marketchannel"
+      ],
+      "params": [
+        "id",
+        "lender",
+        "borrower",
+        "facilityID",
+        "beds",
+        "priceMicro"
+      ],
+      "needsSeed": true,
+      "tapeSafe": false,
+      "readOnly": false,
+      "requires": "فقط Caliper — Tape آرگومان ثابت می‌فرستد و موجودی حساب وام‌گیرنده پس از چند معامله تمام می‌شود",
+      "note": "اجاره ظرفیت تخت؛ نیازمند تخت آزاد واقعی و موجودی."
+    },
+    "TradeOrSlot": {
+      "fn": "TradeOrSlot",
+      "kind": "market",
+      "channels": [
+        "marketchannel"
+      ],
+      "params": [
+        "id",
+        "from",
+        "to",
+        "amount",
+        "priceMicro"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "انتقال توکن."
+    },
+    "LendStaffHours": {
+      "fn": "LendStaffHours",
+      "kind": "market",
+      "channels": [
+        "marketchannel"
+      ],
+      "params": [
+        "id",
+        "from",
+        "to",
+        "amount",
+        "priceMicro"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "انتقال توکن."
+    },
+    "GrantConsent": {
+      "fn": "GrantConsent",
+      "kind": "ledger",
+      "channels": [
+        "consentchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "RevokeConsent": {
+      "fn": "RevokeConsent",
+      "kind": "ledger",
+      "channels": [
+        "consentchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "CheckConsent": {
+      "fn": "CheckConsent",
+      "kind": "guarded",
+      "channels": [
+        "consentchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "condition",
+        "threshold"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "تصمیم قطعی؛ می‌تواند رد کند."
+    },
+    "ShareDataWithProvider": {
+      "fn": "ShareDataWithProvider",
+      "kind": "guarded",
+      "channels": [
+        "consentchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "condition",
+        "threshold"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "تصمیم قطعی؛ می‌تواند رد کند."
+    },
+    "LogDataAccess": {
+      "fn": "LogDataAccess",
+      "kind": "ledger",
+      "channels": [
+        "consentchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "EmergencyOverrideAccess": {
+      "fn": "EmergencyOverrideAccess",
+      "kind": "guarded",
+      "channels": [
+        "consentchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "condition",
+        "threshold"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "تصمیم قطعی؛ می‌تواند رد کند."
+    },
+    "LogPatientAudit": {
+      "fn": "LogPatientAudit",
+      "kind": "ledger",
+      "channels": [
+        "auditchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "LogClinicalAudit": {
+      "fn": "LogClinicalAudit",
+      "kind": "ledger",
+      "channels": [
+        "auditchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "LogAccessAudit": {
+      "fn": "LogAccessAudit",
+      "kind": "ledger",
+      "channels": [
+        "auditchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "LogDrugAudit": {
+      "fn": "LogDrugAudit",
+      "kind": "ledger",
+      "channels": [
+        "auditchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "LogBloodAudit": {
+      "fn": "LogBloodAudit",
+      "kind": "ledger",
+      "channels": [
+        "auditchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "LogFinancialAudit": {
+      "fn": "LogFinancialAudit",
+      "kind": "ledger",
+      "channels": [
+        "auditchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "LogSystemAudit": {
+      "fn": "LogSystemAudit",
+      "kind": "ledger",
+      "channels": [
+        "auditchannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "RecordAccreditation": {
+      "fn": "RecordAccreditation",
+      "kind": "ledger",
+      "channels": [
+        "compliancechannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "ReportIncident": {
+      "fn": "ReportIncident",
+      "kind": "ledger",
+      "channels": [
+        "compliancechannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "RecordQualityIndicator": {
+      "fn": "RecordQualityIndicator",
+      "kind": "ledger",
+      "channels": [
+        "compliancechannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "VerifyProtocolAdherence": {
+      "fn": "VerifyProtocolAdherence",
+      "kind": "ledger",
+      "channels": [
+        "compliancechannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "ReportOccupancy": {
+      "fn": "ReportOccupancy",
+      "kind": "ledger",
+      "channels": [
+        "analyticschannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "ReportWaitTime": {
+      "fn": "ReportWaitTime",
+      "kind": "ledger",
+      "channels": [
+        "analyticschannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "ReportOutcomeIndicator": {
+      "fn": "ReportOutcomeIndicator",
+      "kind": "ledger",
+      "channels": [
+        "analyticschannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    },
+    "ReportEpidemicSignal": {
+      "fn": "ReportEpidemicSignal",
+      "kind": "ledger",
+      "channels": [
+        "analyticschannel"
+      ],
+      "params": [
+        "id",
+        "subject",
+        "detail"
+      ],
+      "needsSeed": true,
+      "tapeSafe": true,
+      "readOnly": false,
+      "note": "نوشتن کور، هرگز رد نمی‌کند. خط پایه شاهد."
+    }
+  }
+}

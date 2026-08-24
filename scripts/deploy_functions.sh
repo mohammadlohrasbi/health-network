@@ -402,3 +402,44 @@ deploy_one_channel() {
   fi
   success "کانال $ch کامل deploy شد — $INSTALLED_OK قرارداد"
 }
+
+# --------- فراخوانی و پرس‌وجوی قرارداد ---------
+# این دو تابع در نسخه 6G وجود نداشتند چون بذرکاری آنجا داخل
+# seed-network.sh با docker exec خام انجام می‌شد. اینجا لازم‌اند
+# و همان قرارداد approve_commit_one را دنبال می‌کنند:
+#   · اجرا داخل کانتینر peer0.org1 با هویت org1MSP
+#   · TLS از CORE_PEER_TLS_ENABLED که set-tls.sh در .env می‌گذارد
+#   · فلگ‌های --tls/--cafile/--clientauth را set-tls.sh تزریق
+#     می‌کند (الگوی `peer chaincode invoke` را می‌شناسد)
+#
+# خروجی **پنهان نمی‌شود**: فراخواننده تصمیم می‌گیرد چه نشان دهد.
+
+invoke_chaincode() {
+  local ch="$1" name="$2" payload="$3"
+  local PEER_ARGS=""
+  local i
+  for i in {1..8}; do
+    PEER_ARGS="$PEER_ARGS --peerAddresses peer0.org${i}.example.com:${ORG_PORTS[$i]}"
+  done
+
+  docker exec \
+    -e CORE_PEER_LOCALMSPID=org1MSP \
+    -e CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/fabric/admin-msp \
+    -e CORE_PEER_ADDRESS=peer0.org1.example.com:7051 \
+    peer0.org1.example.com peer chaincode invoke \
+      -o orderer.example.com:7050 \
+      --channelID "$ch" --name "$name" \
+      $PEER_ARGS \
+      --waitForEvent \
+      -c "$payload"
+}
+
+query_chaincode() {
+  local ch="$1" name="$2" payload="$3"
+  docker exec \
+    -e CORE_PEER_LOCALMSPID=org1MSP \
+    -e CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/fabric/admin-msp \
+    -e CORE_PEER_ADDRESS=peer0.org1.example.com:7051 \
+    peer0.org1.example.com peer chaincode query \
+      --channelID "$ch" --name "$name" -c "$payload"
+}

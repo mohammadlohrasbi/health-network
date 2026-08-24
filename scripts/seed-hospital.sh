@@ -80,6 +80,7 @@ log "بذر=$SEED شبکه=${GRID_M}m مراکز=$FACILITIES ردیابی_تخت
 log "کانال‌ها: ${CHANNELS[*]}"
 
 OK=0; FAILED=0; SKIPPED=0
+FIRST_ERROR=""
 FAILED_LIST=""
 
 for ch in "${CHANNELS[@]}"; do
@@ -98,14 +99,21 @@ for ch in "${CHANNELS[@]}"; do
 
     # invoke_chaincode از deploy_functions.sh می‌آید و فلگ‌های TLS را
     # خودش می‌گذارد (set-tls.sh آن را پچ کرده).
-    if invoke_chaincode "$ch" "$cc" \
-        "{\"function\":\"SeedFacilityLayout\",\"Args\":[\"$SEED\",\"$GRID_M\",\"$FACILITIES\",\"$TRACK_BEDS\"]}" \
-        >/dev/null 2>&1; then
+    # خروجی نگه داشته می‌شود: اولین شکست باید علتش را نشان دهد.
+    # نسخه اول همه را به /dev/null می‌فرستاد، و وقتی تابع
+    # invoke_chaincode اصلاً وجود نداشت هیچ سرنخی نماند.
+    # ⚠️ `if OUT=$(...)` نه `OUT=$(...); if [ $? -eq 0 ]`.
+    # در حالت دوم $? کد خروجی **انتساب** است. اینجا اتفاقاً همان
+    # کد فرمان جانشین است، ولی اگر بعداً چیزی بین دو خط اضافه
+    # شود بی‌صدا می‌شکند.
+    if OUT=$(invoke_chaincode "$ch" "$cc" \
+      "{\"function\":\"SeedFacilityLayout\",\"Args\":[\"$SEED\",\"$GRID_M\",\"$FACILITIES\",\"$TRACK_BEDS\"]}" 2>&1); then
       OK=$((OK+1))
       printf '.'
     else
       FAILED=$((FAILED+1))
       FAILED_LIST="$FAILED_LIST $ch/$cc"
+      [ -z "$FIRST_ERROR" ] && FIRST_ERROR="$ch/$cc: $OUT"
       printf 'x'
     fi
   done
@@ -115,6 +123,12 @@ echo
 log "بذرکاری تمام شد: موفق=$OK ناموفق=$FAILED رد‌شده=$SKIPPED"
 
 if [ "$FAILED" -gt 0 ]; then
+  if [ -n "$FIRST_ERROR" ]; then
+    echo
+    warn "اولین خطا:"
+    echo "$FIRST_ERROR" | head -20 >&2
+    echo
+  fi
   warn "قراردادهای ناموفق:$FAILED_LIST"
   warn "علت‌های محتمل: قرارداد commit نشده، کانال ساخته نشده،"
   warn "یا فلگ TLS غایب. با 'docker logs peer0.org1.example.com' بررسی کنید."

@@ -316,22 +316,55 @@ func (h *HospitalBase) getConfig(ctx contractapi.TransactionContextInterface) (N
    نیست و هر قرارداد باید خودش بذرکاری شود. همین محدودیت در 6G
    بود و seed-network.sh را لازم کرد. */
 
+// 🔴 قاعده‌ای که این تابع یک بار نقض کرد و باگ سختی ساخت:
+// **در فابریک، GetState نوشته‌های همان تراکنش را نمی‌بیند.**
+//
+// نسخه اول چنین بود:
+//     SetConfig(...)              // PutState روی keyConfig
+//     ...نوشتن مراکز...
+//     cfg, _ := h.getConfig(ctx)  // GetState → nil! هنوز commit نشده
+//     cfg.Seeded = 1              // روی مقدار صفر
+//     PutState(keyConfig, cfg)    // ← پیکربندی را با صفر بازنویسی کرد
+//
+// نتیجه: FacilityCount=0 روی زنجیره. مراکز واقعاً نوشته شده بودند،
+// ولی loadFacilities حلقه i <= 0 می‌زد و هیچ‌کدام را نمی‌خواند →
+// «هیچ مرکزی بذرکاری نشده». و چون خطای getConfig با _ بلعیده
+// شده بود، هیچ نشانه‌ای نمی‌ماند.
+//
+// رفع: ساختار را یک بار در حافظه بساز و **یک بار** بنویس.
 func (h *HospitalBase) SeedFacilityLayout(ctx contractapi.TransactionContextInterface,
     seed string, gridM, facilityCount, trackBeds int64) error {
 
-    if err := h.SetConfig(ctx, seed, gridM, facilityCount, trackBeds); err != nil {
-        return err
+    if gridM <= 0 {
+        return fmt.Errorf("اندازه شبکه باید مثبت باشد")
     }
+    if facilityCount <= 0 || facilityCount > 500 {
+        return fmt.Errorf("تعداد مرکز باید بین ۱ و ۵۰۰ باشد")
+    }
+
     facs := SeedFacilities(seed, facilityCount, gridM)
+    if int64(len(facs)) != facilityCount {
+        return fmt.Errorf("چیدمان %d مرکز ساخت، انتظار %d", len(facs), facilityCount)
+    }
     for i := range facs {
-        b, _ := json.Marshal(facs[i])
+        b, err := json.Marshal(facs[i])
+        if err != nil {
+            return err
+        }
         if err := ctx.GetStub().PutState(prefixFac+facs[i].ID, b); err != nil {
             return err
         }
     }
-    cfg, _ := h.getConfig(ctx)
-    cfg.Seeded = 1
-    cb, _ := json.Marshal(cfg)
+
+    cfg := NetConfig{
+        Seed: seed, GridM: gridM, FacilityCount: facilityCount,
+        TrackBeds: trackBeds, DetourMilli: 1300, DispatchSec: 180,
+        Seeded: 1,
+    }
+    cb, err := json.Marshal(cfg)
+    if err != nil {
+        return err
+    }
     return ctx.GetStub().PutState(keyConfig, cb)
 }
 

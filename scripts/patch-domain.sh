@@ -1145,6 +1145,122 @@ NODEEOF
   bash -n "$ROOT_DIR/scripts/deploy_functions.sh" || { echo "  ✗ نحو deploy_functions شکست"; exit 1; }
 fi
 
+
+# ── ۲۵. دور هجدهم: کانال شاهد همیشه همراه باشد ──────────
+# 🔴 در سه اجرای پیاپی، `auditchannel` هرگز ساخته نشد — چون
+# دستور `CHANNELS="datachannel"` بود که به یک کانال ترجمه
+# می‌شود. نتیجه: شبکه سالم بالا می‌آید ولی **آزمایش شاهد
+# ممکن نیست**، و کاربر باید دستی دو دستور دیگر بزند.
+#
+# آزمایش اصلی این معماری مقایسه دو کانال است:
+#   admissionchannel  ۷ قرارداد selector — تریاژ، انتخاب مرکز، رد
+#   auditchannel      ۷ قرارداد ledger  — نوشتن کور، بدون شرط
+# بدون دومی، عدد اولی با هیچ چیز قابل مقایسه نیست.
+#
+# پس اگر کانال selector خواسته شده ولی کانال شاهد نه، خودکار
+# اضافه می‌شود — با اعلام صریح و امکان خاموش کردن
+# (`WITH_CONTROL=0`). این «حدس زدن» نیست: کانال شاهد ارزان است
+# (۷ قرارداد نوشتن کور) و نبودش کل هدف بنچمارک را از بین می‌برد.
+log "دور هجدهم: کانال شاهد خودکار"
+
+if [ "$DRY_RUN" != "1" ] && ! grep -q 'WITH_CONTROL' "$ROOT_DIR/scripts/bootstrap-secure.sh"; then
+  mkdir -p "$BK/scripts"
+  cp "$ROOT_DIR/scripts/bootstrap-secure.sh" "$BK/scripts/bootstrap-secure.ctl.sh"
+  node - "$ROOT_DIR" <<'NODEEOF'
+const fs = require('fs');
+const path = require('path');
+const p = path.join(process.argv[2], 'scripts', 'bootstrap-secure.sh');
+let s = fs.readFileSync(p, 'utf8');
+const before = s;
+
+// ۱) پیش‌فرض هر دو کانال
+s = s.replace(/CHANNELS="\$\{CHANNELS:-admissionchannel\}"/,
+  'CHANNELS="${CHANNELS:-admissionchannel auditchannel}"\n'
+  + '# کانال شاهد بنچمارک. با WITH_CONTROL=0 خاموش می‌شود.\n'
+  + 'CONTROL_CHANNEL="${CONTROL_CHANNEL:-auditchannel}"\n'
+  + 'WITH_CONTROL="${WITH_CONTROL:-1}"');
+s = s.replace(/# ۳ نود Raft، TLS کامل، admissionchannel/,
+  '# ۳ نود Raft، TLS کامل، admissionchannel + auditchannel');
+
+// ۲) پس از ترجمه نام‌ها، کانال شاهد را اضافه کن
+s = s.replace(/(    CHANNELS="\$\{RESOLVED# \}"\n)(    ok "کانال‌ها معتبرند: \$CHANNELS")/,
+  `$1
+    # کانال شاهد: بدون آن، عدد بنچمارک کانال selector با هیچ چیز
+    # قابل مقایسه نیست. ۷ قرارداد نوشتن کور، هزینه‌اش ناچیز.
+    if [ "$WITH_CONTROL" = "1" ]; then
+        case " $CHANNELS " in
+            *" $CONTROL_CHANNEL "*) ;;
+            *)
+                CHANNELS="$CHANNELS $CONTROL_CHANNEL"
+                warn "کانال شاهد «$CONTROL_CHANNEL» خودکار اضافه شد (آزمایش مقایسه‌ای)"
+                warn "برای خاموش کردن: WITH_CONTROL=0"
+                ;;
+        esac
+    fi
+$2`);
+
+if (s === before) console.log('  bootstrap-secure.sh از قبل به‌روز است');
+else { fs.writeFileSync(p, s); console.log('  کانال شاهد خودکار اضافه شد'); }
+NODEEOF
+  bash -n "$ROOT_DIR/scripts/bootstrap-secure.sh" || { echo "  ✗ نحو bootstrap شکست"; exit 1; }
+fi
+
+
+# ── ۲۶. دور نوزدهم: خلاصه آمادگی بنچمارک ───────────────
+# پس از راه‌اندازی، کاربر باید بداند **دقیقاً چه چیزی آماده
+# است** و قدم بعدی چیست. متن پایانی فعلی از پروژه 6G مانده و
+# درباره آنتن و 6G حرف می‌زند.
+log "دور نوزدهم: خلاصه آمادگی بنچمارک"
+
+if [ "$DRY_RUN" != "1" ] && ! grep -q 'آمادگی بنچمارک' "$ROOT_DIR/scripts/bootstrap-secure.sh"; then
+  cp "$ROOT_DIR/scripts/bootstrap-secure.sh" "$BK/scripts/bootstrap-secure.sum.sh"
+  node - "$ROOT_DIR" <<'NODEEOF'
+const fs = require('fs');
+const path = require('path');
+const p = path.join(process.argv[2], 'scripts', 'bootstrap-secure.sh');
+let s = fs.readFileSync(p, 'utf8');
+
+const re = /آزمایشی که حالا ممکن شد و پیش از این نبود:[\s\S]*?\.\/setup-raft\.sh solo[^\n]*\n/;
+if (!re.test(s)) { console.log('  متن پایانی پیدا نشد — رد شد'); process.exit(0); }
+
+s = s.replace(re, `آمادگی بنچمارک:
+EOSUM
+for _ch in $CHANNELS; do
+    printf '  %-20s %s\\n' "$_ch" "$(./deploy-staged.sh list 2>/dev/null | grep "$_ch" | grep -oE '[0-9]+/[0-9]+' | head -1)"
+done
+cat <<'EOSUM2'
+
+آزمایش شاهد — همان شبکه، همان سیاست، تنها تفاوت کار chaincode:
+  admissionchannel  ۷ قرارداد selector — تریاژ NEWS2، انتخاب مرکز از
+                    میان ۱۲، کنترل پذیرش. ممکن است رد کند.
+  auditchannel      ۷ قرارداد ledger — نوشتن کور، هرگز رد نمی‌کند.
+
+  اختلاف گذردهی این دو = «هزینه پیچیدگی chaincode».
+  پیش‌بینی بر پایه یافته پروژه 6G: قابل اندازه‌گیری نخواهد بود،
+  چون گلوگاه اجماع است نه اجرای chaincode.
+
+  ⚠️ نرخ رد selector (شبیه‌سازی: ~۸٪، همه «خارج از پنجره طلایی»)
+     متریک دامنه است نه خطا — در گزارش جدا از نرخ خطا بیاید.
+
+آزمایش‌های دیگری که این معماری ممکن کرد:
+  # بهای تحمل خطا — همان بنچمارک با solo و با Raft
+  ./setup-raft.sh solo && ...بازسازی از گام ۵
+
+  # منحنی گذردهی بر حسب تعداد امضا
+  CC_POLICY="OutOf(3,...)" ./upgrade-chaincode.sh admissionchannel
+
+  # کنترل پذیرش و کلید داغ (۱۲ مرکز، نرخ بالا → تعارض MVCC)
+  TRACK_BEDS=1 ./seed-hospital.sh admissionchannel
+
+ارتقای قرارداد بدون بازسازی شبکه:
+  ./upgrade-chaincode.sh admissionchannel
+`);
+fs.writeFileSync(p, s);
+console.log('  خلاصه آمادگی بنچمارک اضافه شد');
+NODEEOF
+  bash -n "$ROOT_DIR/scripts/bootstrap-secure.sh" || { echo "  ✗ نحو bootstrap شکست"; exit 1; }
+fi
+
 # ── تأیید ───────────────────────────────────────────────
 if [ "$DRY_RUN" = "1" ]; then
   log "DRY_RUN — هیچ تغییری اعمال نشد"
@@ -1211,6 +1327,18 @@ check "bootstrap مسیر نسبی به پوشه‌های ریشه ندارد" \
 # ROOT_DIR باید صریح پاس شود، وگرنه اسکریپت پیش‌فرض
 # /root/health-network را می‌گیرد و روی «network.sh نیست» می‌افتد
 # پیش از اینکه به اعتبارسنجی کانال برسد.
+# 🔴 سه اجرای پیاپی شبکه سالم داد ولی بدون کانال شاهد — یعنی
+# بنچمارک قابل تفسیر نبود.
+check "متن پایانی درباره دامنه سلامت است نه 6G" \
+      "grep -q 'آزمایش شاهد' '$ROOT_DIR/scripts/bootstrap-secure.sh' \
+       && ! grep -q 'ادبیات شبکه‌های 6G' '$ROOT_DIR/scripts/bootstrap-secure.sh'"
+check "کانال شاهد خودکار اضافه می‌شود" \
+      "cd '$ROOT_DIR/scripts' && out=\$(ROOT_DIR='$ROOT_DIR' CHANNELS=datachannel bash bootstrap-secure.sh 2>&1) ; \
+       echo \"\$out\" | grep -q 'کانال شاهد' \
+       && echo \"\$out\" | grep -q 'admissionchannel auditchannel'"
+check "کانال شاهد قابل خاموش کردن است" \
+      "cd '$ROOT_DIR/scripts' && out=\$(ROOT_DIR='$ROOT_DIR' WITH_CONTROL=0 CHANNELS=datachannel bash bootstrap-secure.sh 2>&1) ; \
+       ! echo \"\$out\" | grep -q 'auditchannel'"
 check "نام کانال 6G ترجمه می‌شود نه رد" \
       "cd '$ROOT_DIR/scripts' && out=\$(ROOT_DIR='$ROOT_DIR' CHANNELS=datachannel bash bootstrap-secure.sh 2>&1) ; \
        echo \"\$out\" | grep -q 'نام پروژه 6G است' && echo \"\$out\" | grep -q 'admissionchannel'"

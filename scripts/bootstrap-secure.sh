@@ -19,7 +19,7 @@
 # هم مسیر گواهی consenter ها را در خود دارد.
 #
 # استفاده:
-#   ./bootstrap-secure.sh              # ۳ نود Raft، TLS کامل، admissionchannel
+#   ./bootstrap-secure.sh              # ۳ نود Raft، TLS کامل، admissionchannel + auditchannel
 #   NODES=5 ./bootstrap-secure.sh
 #   CHANNELS="admissionchannel auditchannel" ./bootstrap-secure.sh
 #   CHANNELS=all ./bootstrap-secure.sh          # هر 20 کانال (طولانی)
@@ -34,7 +34,10 @@ ROOT_DIR="${ROOT_DIR:-/root/health-network}"
 SCRIPTS="$ROOT_DIR/scripts"
 CONFIG="$ROOT_DIR/config"
 NODES="${NODES:-3}"
-CHANNELS="${CHANNELS:-admissionchannel}"
+CHANNELS="${CHANNELS:-admissionchannel auditchannel}"
+# کانال شاهد بنچمارک. با WITH_CONTROL=0 خاموش می‌شود.
+CONTROL_CHANNEL="${CONTROL_CHANNEL:-auditchannel}"
+WITH_CONTROL="${WITH_CONTROL:-1}"
 DRY_RUN="${DRY_RUN:-0}"
 SKIP_NETWORK="${SKIP_NETWORK:-0}"
 
@@ -88,6 +91,19 @@ if [ "$CHANNELS" != "all" ]; then
         exit 1
     fi
     CHANNELS="${RESOLVED# }"
+
+    # کانال شاهد: بدون آن، عدد بنچمارک کانال selector با هیچ چیز
+    # قابل مقایسه نیست. ۷ قرارداد نوشتن کور، هزینه‌اش ناچیز.
+    if [ "$WITH_CONTROL" = "1" ]; then
+        case " $CHANNELS " in
+            *" $CONTROL_CHANNEL "*) ;;
+            *)
+                CHANNELS="$CHANNELS $CONTROL_CHANNEL"
+                warn "کانال شاهد «$CONTROL_CHANNEL» خودکار اضافه شد (آزمایش مقایسه‌ای)"
+                warn "برای خاموش کردن: WITH_CONTROL=0"
+                ;;
+        esac
+    fi
     ok "کانال‌ها معتبرند: $CHANNELS"
 fi
 for t in docker go node openssl; do
@@ -337,10 +353,35 @@ cat <<'NEXT'
   ./deploy-staged.sh list          # باید همچنان جواب بدهد
   docker start orderer.example.com
 
-آزمایشی که حالا ممکن شد و پیش از این نبود:
+آمادگی بنچمارک:
+EOSUM
+for _ch in $CHANNELS; do
+    printf '  %-20s %s\n' "$_ch" "$(./deploy-staged.sh list 2>/dev/null | grep "$_ch" | grep -oE '[0-9]+/[0-9]+' | head -1)"
+done
+cat <<'EOSUM2'
 
-  همان بنچمارک را با solo و با Raft بگیرید و مقایسه کنید. اختلاف،
-  «بهای تحمل خطا» است — عددی که در ادبیات شبکه‌های 6G کم سنجیده شده.
+آزمایش شاهد — همان شبکه، همان سیاست، تنها تفاوت کار chaincode:
+  admissionchannel  ۷ قرارداد selector — تریاژ NEWS2، انتخاب مرکز از
+                    میان ۱۲، کنترل پذیرش. ممکن است رد کند.
+  auditchannel      ۷ قرارداد ledger — نوشتن کور، هرگز رد نمی‌کند.
 
-  ./setup-raft.sh solo   # و دوباره از گام ۵ به بعد
+  اختلاف گذردهی این دو = «هزینه پیچیدگی chaincode».
+  پیش‌بینی بر پایه یافته پروژه 6G: قابل اندازه‌گیری نخواهد بود،
+  چون گلوگاه اجماع است نه اجرای chaincode.
+
+  ⚠️ نرخ رد selector (شبیه‌سازی: ~۸٪، همه «خارج از پنجره طلایی»)
+     متریک دامنه است نه خطا — در گزارش جدا از نرخ خطا بیاید.
+
+آزمایش‌های دیگری که این معماری ممکن کرد:
+  # بهای تحمل خطا — همان بنچمارک با solo و با Raft
+  ./setup-raft.sh solo && ...بازسازی از گام ۵
+
+  # منحنی گذردهی بر حسب تعداد امضا
+  CC_POLICY="OutOf(3,...)" ./upgrade-chaincode.sh admissionchannel
+
+  # کنترل پذیرش و کلید داغ (۱۲ مرکز، نرخ بالا → تعارض MVCC)
+  TRACK_BEDS=1 ./seed-hospital.sh admissionchannel
+
+ارتقای قرارداد بدون بازسازی شبکه:
+  ./upgrade-chaincode.sh admissionchannel
 NEXT

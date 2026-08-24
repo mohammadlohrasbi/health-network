@@ -973,6 +973,12 @@ let out = `#!/bin/bash
 # ═══════════════════════════════════════════════════════════════
 set -euo pipefail
 
+# 🔴 تله خطا — تا «مرگ بی‌صدا» دیگر ممکن نباشد.
+# با set -e هر دستور ناموفق اسکریپت را می‌کشد بدون هیچ پیامی.
+# سه اجرا طول کشید تا بفهمیم کجا می‌افتد، چون آخرین خط log
+# مربوط به گام **قبلی** بود. حالا خودِ خط و دستور چاپ می‌شود.
+trap 'rc=\$?; echo "[خطا] خط \$LINENO، کد \$rc: \$BASH_COMMAND" >&2; exit \$rc' ERR
+
 ROOT_DIR="\${ROOT_DIR:-/root/health-network}"
 # 🔴 مسیر باید با زیرساخت بخواند، نه برعکس.
 # deploy-staged.sh و network.sh هر دو
@@ -1026,8 +1032,31 @@ out += `
 #
 # راه‌حل: یک بار tidy، بعد همان go.sum به همه کپی شود. چون هر
 # ۱۱۰ قرارداد **دقیقاً یک import** دارند، go.sum هر سه یکی است.
+# 🔴 باگی که سه اجرا طول کشید تا دیده شود، چون **مسابقه‌ای** بود:
+#
+#   FIRST=\$(find ... | sort | head -1)
+#
+# با \`set -euo pipefail\`، \`head -1\` لوله را پس از یک خط می‌بندد،
+# \`sort\` سیگنال SIGPIPE می‌گیرد، \`pipefail\` آن را خطا می‌شمارد و
+# \`set -e\` اسکریپت را **بی‌صدا** می‌کشد — بدون هیچ پیامی.
+#
+# با ۱۱۰ مسیر واقعی (~۷KB) در آزمون، ۲۹ شکست در ۲۰۰ اجرا. دفعات
+# قبل تصادفاً رد شده بود.
+#
+# راه‌حل: بدون لوله. آرایه بساز و اولی را بردار.
 log "حل وابستگی‌ها (یک بار برای همه)"
-FIRST=\$(find "\$CC_DIR" -mindepth 1 -maxdepth 1 -type d | sort | head -1)
+CC_DIRS=()
+# find -print0 | sort -z: هیچ لوله‌ای زودتر بسته نمی‌شود، پس
+# SIGPIPE و مشکل pipefail اصلاً پیش نمی‌آید.
+while IFS= read -r -d '' _d; do CC_DIRS+=("\$_d"); done \
+  < <(find "\$CC_DIR" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+if [ \${#CC_DIRS[@]} -eq 0 ]; then
+  log "خطا: هیچ پوشه قراردادی در \$CC_DIR نیست"
+  exit 1
+fi
+FIRST="\${CC_DIRS[0]}"
+LAST="\${CC_DIRS[\$(( \${#CC_DIRS[@]} - 1 ))]}"
+log "  \${#CC_DIRS[@]} پوشه — مرجع: \$(basename "\$FIRST")"
 cd "\$FIRST"
 if ! go mod tidy; then
   log "خطا: go mod tidy در \$(basename "\$FIRST") شکست خورد"
@@ -1088,7 +1117,7 @@ done
 
 # کامپایل آخرین قرارداد هم — اگر توزیع کار نکرده باشد، اینجا
 # معلوم می‌شود نه در گام استقرار.
-LAST=\$(find "\$CC_DIR" -mindepth 1 -maxdepth 1 -type d | sort | tail -1)
+# LAST بالاتر از همان آرایه گرفته شد — بدون لوله.
 log "کامپایل \$(basename "\$LAST") برای تأیید توزیع"
 cd "\$LAST"
 if ! go build -o /dev/null . ; then

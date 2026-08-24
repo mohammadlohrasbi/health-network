@@ -1005,6 +1005,69 @@ NODEEOF
   bash -n "$ROOT_DIR/scripts/seed-hospital.sh" || { echo "  ✗ نحو seed-hospital شکست"; exit 1; }
 fi
 
+
+# ── ۲۳. دور شانزدهم: ORG_PORTS خودکفا ──────────────────
+# 🔴 log نهم — و این بار تشخیصی که دور قبل اضافه شد، خودش
+# ریشه را نشان داد:
+#
+#   deploy_functions.sh: line 431: ORG_PORTS[$i]: unbound variable
+#
+# `ORG_PORTS` در `deploy-staged.sh` تعریف می‌شود، ولی هر هفت
+# تابع `deploy_functions.sh` از آن استفاده می‌کنند. تا وقتی همیشه
+# از طریق deploy-staged.sh فراخوانی می‌شد، این وابستگی پنهان
+# می‌ماند. `seed-hospital.sh` مستقیماً deploy_functions را source
+# می‌کند و با `set -u` بلافاصله می‌افتد.
+#
+# رفع درست: فایل توابع **خودکفا** شود، نه اینکه هر فراخواننده
+# مجبور باشد وابستگی‌های پنهانش را بداند. تعریف با `-v` مشروط
+# است، پس اگر deploy-staged.sh از قبل تعریفش کرده باشد
+# بازنویسی نمی‌شود.
+log "دور شانزدهم: ORG_PORTS خودکفا"
+
+if [ "$DRY_RUN" != "1" ] && ! grep -q 'ORG_PORTS خودکفا' "$ROOT_DIR/scripts/deploy_functions.sh"; then
+  mkdir -p "$BK/scripts"
+  cp "$ROOT_DIR/scripts/deploy_functions.sh" "$BK/scripts/deploy_functions.ports.sh"
+  node - "$ROOT_DIR" <<'NODEEOF'
+const fs = require('fs');
+const path = require('path');
+const p = path.join(process.argv[2], 'scripts', 'deploy_functions.sh');
+let s = fs.readFileSync(p, 'utf8');
+
+const DEF = `
+# --------- ORG_PORTS خودکفا ---------
+# هر هفت تابع این فایل به ORG_PORTS نیاز دارند، ولی تعریفش در
+# deploy-staged.sh بود. تا وقتی فراخوانی همیشه از آنجا می‌آمد
+# وابستگی پنهان می‌ماند؛ seed-hospital.sh که مستقیم source
+# می‌کند، با \`set -u\` روی «unbound variable» می‌افتاد.
+#
+# مشروط تعریف می‌شود: اگر فراخواننده از قبل ساخته باشد، دست
+# نمی‌خورد.
+if ! declare -p ORG_PORTS >/dev/null 2>&1; then
+  declare -A ORG_PORTS=(
+    [1]=7051 [2]=8051 [3]=9051 [4]=10051
+    [5]=11051 [6]=12051 [7]=13051 [8]=14051
+  )
+fi
+
+# CHAINCODE_DIR هم همین وضع را دارد.
+: "\${CHAINCODE_DIR:=\${SCRIPTS_DIR:-$(cd "$(dirname "\${BASH_SOURCE[0]}")" && pwd)}/chaincode}"
+
+# CC_POLICY از channel_contract_map.sh می‌آید؛ اگر فراخواننده آن
+# را source نکرده باشد، اینجا پیش‌فرض امن می‌گذاریم.
+: "\${CC_POLICY:=OR('org1MSP.member','org2MSP.member','org3MSP.member','org4MSP.member','org5MSP.member','org6MSP.member','org7MSP.member','org8MSP.member')}"
+
+`;
+
+// پس از خط shebang / هر هدر اولیه، پیش از اولین تابع
+const m = /^[a-z_]+\(\) \{/m.exec(s);
+if (!m) { console.error('  هشدار: هیچ تابعی پیدا نشد'); process.exit(0); }
+s = s.slice(0, m.index) + DEF + s.slice(m.index);
+fs.writeFileSync(p, s);
+console.log('  ORG_PORTS، CHAINCODE_DIR و CC_POLICY خودکفا شدند');
+NODEEOF
+  bash -n "$ROOT_DIR/scripts/deploy_functions.sh" || { echo "  ✗ نحو deploy_functions شکست"; exit 1; }
+fi
+
 # ── تأیید ───────────────────────────────────────────────
 if [ "$DRY_RUN" = "1" ]; then
   log "DRY_RUN — هیچ تغییری اعمال نشد"
@@ -1098,6 +1161,12 @@ check "bootstrap کانال نامعتبر را پیش از پاک‌سازی م
 # 🔴 کل کلاس: هر تابعی که یک اسکریپت صدا می‌زند باید واقعاً
 # تعریف شده باشد. `invoke_chaincode` وجود نداشت و تا لحظه
 # بذرکاری — بعد از ساخت کامل شبکه — پنهان ماند.
+# 🔴 کل کلاس: هر فایل توابع باید **خودکفا** باشد. اگر متغیری را
+# استفاده می‌کند که فراخواننده باید تعریف کند، آن وابستگی پنهان
+# است و اولین فراخواننده متفاوت آن را می‌شکند. آزمون: فایل را
+# تنها source کن و ببین متغیرهای کلیدی هستند یا نه.
+check "deploy_functions.sh خودکفا است" \
+      "cd '$ROOT_DIR/scripts' && bash -c 'set -u; source ./deploy_functions.sh; : \"\\\${ORG_PORTS[1]}\" \"\\\${ORG_PORTS[8]}\" \"\\\${CHAINCODE_DIR}\" \"\\\${CC_POLICY}\"'"
 check "توابع صداشده در اسکریپت‌ها تعریف شده‌اند" \
       "cd '$ROOT_DIR/scripts' && for fn in invoke_chaincode query_chaincode \
          deploy_one_channel create_and_join_one_channel ensure_go_sum; do \

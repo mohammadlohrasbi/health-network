@@ -1165,6 +1165,17 @@ check "bootstrap کانال نامعتبر را پیش از پاک‌سازی م
 # استفاده می‌کند که فراخواننده باید تعریف کند، آن وابستگی پنهان
 # است و اولین فراخواننده متفاوت آن را می‌شکند. آزمون: فایل را
 # تنها source کن و ببین متغیرهای کلیدی هستند یا نه.
+# 🔴 قاعده فابریک: GetState نوشته‌های همان تراکنش را نمی‌بیند.
+# SeedFacilityLayout این را نقض کرد — پس از PutState روی
+# keyConfig دوباره getConfig زد، مقدار صفر گرفت، و همان صفر را
+# روی پیکربندی نوشت. FacilityCount=0 روی زنجیره نشست و هر
+# پرس‌وجو گفت «هیچ مرکزی بذرکاری نشده».
+check "SeedFacilityLayout پیکربندی را دوباره نمی‌خواند" \
+      "! sed -n '/func (h \\*HospitalBase) SeedFacilityLayout/,/^}/p' \
+         '$ROOT_DIR/scripts/generateChaincodes_hospital.sh' | grep -qE 'getConfig|GetState'"
+check "SeedFacilityLayout پیکربندی را یک بار می‌نویسد" \
+      "[ \"\$(sed -n '/func (h \\*HospitalBase) SeedFacilityLayout/,/^}/p' \
+         '$ROOT_DIR/scripts/generateChaincodes_hospital.sh' | grep -c 'PutState(keyConfig')\" = '1' ]"
 check "deploy_functions.sh خودکفا است" \
       "cd '$ROOT_DIR/scripts' && bash -c 'set -u; source ./deploy_functions.sh; : \"\\\${ORG_PORTS[1]}\" \"\\\${ORG_PORTS[8]}\" \"\\\${CHAINCODE_DIR}\" \"\\\${CC_POLICY}\"'"
 check "توابع صداشده در اسکریپت‌ها تعریف شده‌اند" \

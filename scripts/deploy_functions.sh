@@ -13,6 +13,29 @@ CC_POLICY="${CC_POLICY:-OR('org1MSP.member','org2MSP.member','org3MSP.member','o
 # source "$SCRIPTS_DIR/channel_contract_map.sh"
 
 # --------- ساخت artifact برای همه ۲۰ کانال ---------
+
+# --------- ORG_PORTS خودکفا ---------
+# هر هفت تابع این فایل به ORG_PORTS نیاز دارند، ولی تعریفش در
+# deploy-staged.sh بود. تا وقتی فراخوانی همیشه از آنجا می‌آمد
+# وابستگی پنهان می‌ماند؛ seed-hospital.sh که مستقیم source
+# می‌کند، با `set -u` روی «unbound variable» می‌افتاد.
+#
+# مشروط تعریف می‌شود: اگر فراخواننده از قبل ساخته باشد، دست
+# نمی‌خورد.
+if ! declare -p ORG_PORTS >/dev/null 2>&1; then
+  declare -A ORG_PORTS=(
+    [1]=7051 [2]=8051 [3]=9051 [4]=10051
+    [5]=11051 [6]=12051 [7]=13051 [8]=14051
+  )
+fi
+
+# CHAINCODE_DIR هم همین وضع را دارد.
+: "${CHAINCODE_DIR:=${SCRIPTS_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}/chaincode}"
+
+# CC_POLICY از channel_contract_map.sh می‌آید؛ اگر فراخواننده آن
+# را source نکرده باشد، اینجا پیش‌فرض امن می‌گذاریم.
+: "${CC_POLICY:=OR('org1MSP.member','org2MSP.member','org3MSP.member','org4MSP.member','org5MSP.member','org6MSP.member','org7MSP.member','org8MSP.member')}"
+
 generate_all_channel_artifacts() {
   log "ساخت artifact برای ${#CHANNELS[@]} کانال..."
   local CHANNEL_ARTIFACTS="$CONFIG_DIR/channel-artifacts"

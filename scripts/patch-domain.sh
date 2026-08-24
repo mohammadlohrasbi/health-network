@@ -1068,6 +1068,83 @@ NODEEOF
   bash -n "$ROOT_DIR/scripts/deploy_functions.sh" || { echo "  ✗ نحو deploy_functions شکست"; exit 1; }
 fi
 
+
+# ── ۲۴. دور هفدهم: توالی پویا برای ارتقای درجا ──────────
+# 🔴 `--sequence 1` و `--version 1.0` ثابت بودند. یعنی هر تغییر
+# در کد قرارداد، **بازسازی کامل شبکه** لازم داشت — CA، گواهی،
+# Raft، کانال، همه از نو. در این پروژه شش بار این هزینه پرداخت شد.
+#
+# در پروژه 6G همین را حل کرده بودید: `upgrade-spatial.sh` توالی
+# را از شبکه می‌خواند، پس اجرای مجدد امن بود. اینجا هم می‌آوریم.
+#
+# `peer lifecycle chaincode querycommitted` توالی فعلی را می‌دهد؛
+# اگر قرارداد هنوز نباشد، توالی ۱ است. approve و commit هر دو
+# باید **همان** عدد را بگیرند، وگرنه commit با
+# «requested sequence is N, but new definition must be N+1» رد می‌شود.
+log "دور هفدهم: توالی پویا"
+
+if [ "$DRY_RUN" != "1" ] && ! grep -q 'next_sequence' "$ROOT_DIR/scripts/deploy_functions.sh"; then
+  mkdir -p "$BK/scripts"
+  cp "$ROOT_DIR/scripts/deploy_functions.sh" "$BK/scripts/deploy_functions.seq.sh"
+  node - "$ROOT_DIR" <<'NODEEOF'
+const fs = require('fs');
+const path = require('path');
+const p = path.join(process.argv[2], 'scripts', 'deploy_functions.sh');
+let s = fs.readFileSync(p, 'utf8');
+
+const HELPER = `
+# --------- توالی بعدی یک قرارداد روی یک کانال ---------
+# فابریک برای هر بازتعریف قرارداد، توالی باید دقیقاً یکی بیشتر
+# از توالی فعلی باشد. با عدد ثابت ۱، هر تغییر کد یعنی بازسازی
+# کل شبکه.
+#
+# اگر قرارداد هنوز روی کانال نباشد، querycommitted خطا می‌دهد و
+# توالی ۱ درست است.
+next_sequence() {
+  local ch="$1" name="$2" out cur
+  out=$(docker exec \\
+    -e CORE_PEER_LOCALMSPID=org1MSP \\
+    -e CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/fabric/admin-msp \\
+    -e CORE_PEER_ADDRESS=peer0.org1.example.com:7051 \\
+    peer0.org1.example.com peer lifecycle chaincode querycommitted \\
+      --channelID "$ch" --name "$name" 2>/dev/null) || { echo 1; return 0; }
+
+  cur=$(echo "$out" | sed -n 's/.*[Ss]equence: \\([0-9]\\+\\).*/\\1/p' | tr -d '\\n')
+  if [ -z "$cur" ]; then echo 1; else echo $((cur + 1)); fi
+}
+
+`;
+
+s = s.replace(/approve_commit_one\(\) \{/, HELPER + 'approve_commit_one() {');
+
+// توالی و نسخه را داخل تابع حساب کن
+s = s.replace(
+  /(  log "  approve موازی \$name روی ۸ سازمان\.\.\.")/,
+  `  local SEQ VER
+  SEQ=$(next_sequence "$ch" "$name")
+  VER="1.$((SEQ - 1))"
+  [ "$SEQ" -gt 1 ] && log "  ارتقای $name روی $ch → توالی $SEQ"
+
+$1`);
+
+s = s.replace(/--channelID \$ch --name \$name --version 1\.0 \\\n        --package-id "\$pkgid" --sequence 1 \\/,
+  '--channelID $ch --name $name --version "$VER" \\\n        --package-id "$pkgid" --sequence "$SEQ" \\');
+
+s = s.replace(/--channelID \$ch --name \$name --version 1\.0 --sequence 1 \\/,
+  '--channelID $ch --name $name --version "$VER" --sequence "$SEQ" \\');
+
+// commit ناموفق دیگر فقط هشدار نباشد — همان الگوی «سکوتِ موفق»
+s = s.replace(
+  /    && success "✅ \$name روی \$ch commit شد" \\\n    \|\| log "هشدار: commit \$name\/\$ch ناموفق"/,
+  `    && success "✅ $name روی $ch commit شد (توالی $SEQ)" \\
+    || { log "خطا: commit $name/$ch ناموفق (توالی $SEQ)"; return 1; }`);
+
+fs.writeFileSync(p, s);
+console.log('  توالی پویا اضافه شد');
+NODEEOF
+  bash -n "$ROOT_DIR/scripts/deploy_functions.sh" || { echo "  ✗ نحو deploy_functions شکست"; exit 1; }
+fi
+
 # ── تأیید ───────────────────────────────────────────────
 if [ "$DRY_RUN" = "1" ]; then
   log "DRY_RUN — هیچ تغییری اعمال نشد"
@@ -1176,6 +1253,15 @@ check "SeedFacilityLayout پیکربندی را دوباره نمی‌خواند
 check "SeedFacilityLayout پیکربندی را یک بار می‌نویسد" \
       "[ \"\$(sed -n '/func (h \\*HospitalBase) SeedFacilityLayout/,/^}/p' \
          '$ROOT_DIR/scripts/generateChaincodes_hospital.sh' | grep -c 'PutState(keyConfig')\" = '1' ]"
+# 🔴 توالی ثابت یعنی هر تغییر کد = بازسازی کل شبکه.
+check "اسکریپت ارتقای درجا موجود است" \
+      "[ -x '$ROOT_DIR/scripts/upgrade-chaincode.sh' ] \
+       && bash -n '$ROOT_DIR/scripts/upgrade-chaincode.sh'"
+check "توالی قرارداد پویا است نه ثابت" \
+      "! grep -qE '\\-\\-sequence 1( |$)' '$ROOT_DIR/scripts/deploy_functions.sh' \
+       && grep -q 'next_sequence' '$ROOT_DIR/scripts/deploy_functions.sh'"
+check "commit ناموفق خطا برمی‌گرداند نه هشدار" \
+      "! grep -q 'هشدار: commit' '$ROOT_DIR/scripts/deploy_functions.sh'"
 check "deploy_functions.sh خودکفا است" \
       "cd '$ROOT_DIR/scripts' && bash -c 'set -u; source ./deploy_functions.sh; : \"\\\${ORG_PORTS[1]}\" \"\\\${ORG_PORTS[8]}\" \"\\\${CHAINCODE_DIR}\" \"\\\${CC_POLICY}\"'"
 check "توابع صداشده در اسکریپت‌ها تعریف شده‌اند" \

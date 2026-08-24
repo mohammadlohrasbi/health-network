@@ -972,6 +972,14 @@ check "bootstrap کانال نامعتبر را پیش از پاک‌سازی م
 # 🔴 توزیع باید **هر دو** فایل را ببرد. نسخه‌ای که فقط go.sum
 # می‌برد روی سرور با «updates to go.mod needed» افتاد، چون
 # `go mod tidy` بلوک require را با وابستگی غیرمستقیم پر می‌کند.
+# 🔴 کل کلاس: `cmd | head` زیر `set -euo pipefail` مسابقه‌ای
+# می‌افتد — head لوله را می‌بندد، فرستنده SIGPIPE می‌گیرد،
+# pipefail آن را خطا می‌شمارد، set -e بی‌صدا می‌کشد. با ۱۱۰ مسیر
+# واقعی: ۲۹ شکست در ۲۰۰ اجرا.
+check "مولد لوله ناامن head ندارد" \
+      "! grep -E '^[^#]*\\| *(sort *\\|)? *head ' '$ROOT_DIR/scripts/generateChaincodes_hospital.sh'"
+check "مولد تله خطا دارد (مرگ بی‌صدا ممکن نیست)" \
+      "grep -q 'BASH_COMMAND' '$ROOT_DIR/scripts/generateChaincodes_hospital.sh'"
 check "مولد go.mod و go.sum را به همه قراردادها توزیع می‌کند" \
       "grep -q 'توزیع go.mod و go.sum' '$ROOT_DIR/scripts/generateChaincodes_hospital.sh' \
        && grep -q 'go mod tidy' '$ROOT_DIR/scripts/generateChaincodes_hospital.sh' \

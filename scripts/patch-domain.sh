@@ -886,6 +886,125 @@ NODEEOF
   bash -n "$ROOT_DIR/scripts/deploy_functions.sh" || { echo "  ✗ نحو deploy_functions شکست"; exit 1; }
 fi
 
+
+# ── ۲۱. دور چهاردهم: توابع invoke/query که وجود نداشتند ──
+# 🔴 log هشتم: هر ۷ قرارداد روی admissionchannel با موفقیت
+# commit شدند — ولی بذرکاری هر ۷ را در همان ثانیه رد کرد.
+#
+# علت: `seed-hospital.sh` تابع `invoke_chaincode` را صدا می‌زند،
+# ولی چنین تابعی در `deploy_functions.sh` **اصلاً وجود ندارد**.
+# من فرضش کرده بودم. bash روی تابع ناموجود کد ۱۲۷ می‌دهد، و
+# چون خروجی با `>/dev/null 2>&1` دور ریخته می‌شد، هیچ نشانه‌ای
+# نمی‌ماند جز یک «ناموفق».
+#
+# دو رفع: (۱) توابع را واقعاً بنویس، (۲) دیگر خروجی خطا را
+# پنهان نکن — اولین شکست باید علتش را نشان دهد.
+log "دور چهاردهم: توابع invoke/query"
+
+if [ "$DRY_RUN" != "1" ] && ! grep -q '^invoke_chaincode()' "$ROOT_DIR/scripts/deploy_functions.sh"; then
+  mkdir -p "$BK/scripts"
+  cp "$ROOT_DIR/scripts/deploy_functions.sh" "$BK/scripts/deploy_functions.invoke.sh"
+  cat >> "$ROOT_DIR/scripts/deploy_functions.sh" <<'INVOKEEOF'
+
+# --------- فراخوانی و پرس‌وجوی قرارداد ---------
+# این دو تابع در نسخه 6G وجود نداشتند چون بذرکاری آنجا داخل
+# seed-network.sh با docker exec خام انجام می‌شد. اینجا لازم‌اند
+# و همان قرارداد approve_commit_one را دنبال می‌کنند:
+#   · اجرا داخل کانتینر peer0.org1 با هویت org1MSP
+#   · TLS از CORE_PEER_TLS_ENABLED که set-tls.sh در .env می‌گذارد
+#   · فلگ‌های --tls/--cafile/--clientauth را set-tls.sh تزریق
+#     می‌کند (الگوی `peer chaincode invoke` را می‌شناسد)
+#
+# خروجی **پنهان نمی‌شود**: فراخواننده تصمیم می‌گیرد چه نشان دهد.
+
+invoke_chaincode() {
+  local ch="$1" name="$2" payload="$3"
+  local PEER_ARGS=""
+  local i
+  for i in {1..8}; do
+    PEER_ARGS="$PEER_ARGS --peerAddresses peer0.org${i}.example.com:${ORG_PORTS[$i]}"
+  done
+
+  docker exec \
+    -e CORE_PEER_LOCALMSPID=org1MSP \
+    -e CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/fabric/admin-msp \
+    -e CORE_PEER_ADDRESS=peer0.org1.example.com:7051 \
+    peer0.org1.example.com peer chaincode invoke \
+      -o orderer.example.com:7050 \
+      --channelID "$ch" --name "$name" \
+      $PEER_ARGS \
+      --waitForEvent \
+      -c "$payload"
+}
+
+query_chaincode() {
+  local ch="$1" name="$2" payload="$3"
+  docker exec \
+    -e CORE_PEER_LOCALMSPID=org1MSP \
+    -e CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/fabric/admin-msp \
+    -e CORE_PEER_ADDRESS=peer0.org1.example.com:7051 \
+    peer0.org1.example.com peer chaincode query \
+      --channelID "$ch" --name "$name" -c "$payload"
+}
+INVOKEEOF
+  bash -n "$ROOT_DIR/scripts/deploy_functions.sh" || { echo "  ✗ نحو deploy_functions شکست"; exit 1; }
+  echo "  invoke_chaincode و query_chaincode اضافه شدند"
+fi
+
+# set-tls.sh باید فلگ‌ها را به این دستور جدید هم بزند. الگویش
+# `peer chaincode invoke` است که همین را می‌گیرد — ولی چون فایل
+# پس از اجرای set-tls.sh رشد کرده، اگر TLS از قبل روشن باشد
+# باید دوباره اعمال شود. bootstrap این کار را می‌کند.
+
+# ── ۲۲. بذرکاری باید علت شکست را نشان دهد ──────────────
+# نسخه اول با `>/dev/null 2>&1` همه‌چیز را پنهان می‌کرد و فقط
+# «x» چاپ می‌کرد. وقتی تابع اصلاً وجود نداشت، این یعنی هیچ سرنخی.
+log "دور پانزدهم: نمایش علت شکست بذرکاری"
+
+if [ "$DRY_RUN" != "1" ] && ! grep -q 'FIRST_ERROR' "$ROOT_DIR/scripts/seed-hospital.sh"; then
+  cp "$ROOT_DIR/scripts/seed-hospital.sh" "$BK/scripts/seed-hospital.err.sh"
+  node - "$ROOT_DIR" <<'NODEEOF'
+const fs = require('fs');
+const path = require('path');
+const p = path.join(process.argv[2], 'scripts', 'seed-hospital.sh');
+let s = fs.readFileSync(p, 'utf8');
+const before = s;
+
+s = s.replace(/^OK=0; FAILED=0; SKIPPED=0$/m,
+  'OK=0; FAILED=0; SKIPPED=0\nFIRST_ERROR=""');
+
+s = s.replace(
+  /    if invoke_chaincode "\$ch" "\$cc" \\\n        "\{\\"function\\":\\"SeedFacilityLayout\\",\\"Args\\":\[\\"\$SEED\\",\\"\$GRID_M\\",\\"\$FACILITIES\\",\\"\$TRACK_BEDS\\"\]\}" \\\n        >\/dev\/null 2>&1; then\n      OK=\$\(\(OK\+1\)\)\n      printf '\.'\n    else\n      FAILED=\$\(\(FAILED\+1\)\)\n      FAILED_LIST="\$FAILED_LIST \$ch\/\$cc"\n      printf 'x'\n    fi/,
+  `    # خروجی نگه داشته می‌شود: اولین شکست باید علتش را نشان دهد.
+    # نسخه اول همه را به /dev/null می‌فرستاد، و وقتی تابع
+    # invoke_chaincode اصلاً وجود نداشت هیچ سرنخی نماند.
+    OUT=$(invoke_chaincode "$ch" "$cc" \\
+      "{\\"function\\":\\"SeedFacilityLayout\\",\\"Args\\":[\\"$SEED\\",\\"$GRID_M\\",\\"$FACILITIES\\",\\"$TRACK_BEDS\\"]}" 2>&1)
+    if [ $? -eq 0 ]; then
+      OK=$((OK+1))
+      printf '.'
+    else
+      FAILED=$((FAILED+1))
+      FAILED_LIST="$FAILED_LIST $ch/$cc"
+      [ -z "$FIRST_ERROR" ] && FIRST_ERROR="$ch/$cc: $OUT"
+      printf 'x'
+    fi`);
+
+s = s.replace(/(  warn "قراردادهای ناموفق:\$FAILED_LIST")/,
+  `  if [ -n "$FIRST_ERROR" ]; then
+    echo
+    warn "اولین خطا:"
+    echo "$FIRST_ERROR" | head -20 >&2
+    echo
+  fi
+$1`);
+
+if (s === before) console.error('  هشدار: الگوی seed-hospital تطبیق نیافت');
+else { fs.writeFileSync(p, s); console.log('  نمایش علت شکست اضافه شد'); }
+NODEEOF
+  bash -n "$ROOT_DIR/scripts/seed-hospital.sh" || { echo "  ✗ نحو seed-hospital شکست"; exit 1; }
+fi
+
 # ── تأیید ───────────────────────────────────────────────
 if [ "$DRY_RUN" = "1" ]; then
   log "DRY_RUN — هیچ تغییری اعمال نشد"
@@ -976,6 +1095,16 @@ check "bootstrap کانال نامعتبر را پیش از پاک‌سازی م
 # می‌افتد — head لوله را می‌بندد، فرستنده SIGPIPE می‌گیرد،
 # pipefail آن را خطا می‌شمارد، set -e بی‌صدا می‌کشد. با ۱۱۰ مسیر
 # واقعی: ۲۹ شکست در ۲۰۰ اجرا.
+# 🔴 کل کلاس: هر تابعی که یک اسکریپت صدا می‌زند باید واقعاً
+# تعریف شده باشد. `invoke_chaincode` وجود نداشت و تا لحظه
+# بذرکاری — بعد از ساخت کامل شبکه — پنهان ماند.
+check "توابع صداشده در اسکریپت‌ها تعریف شده‌اند" \
+      "cd '$ROOT_DIR/scripts' && for fn in invoke_chaincode query_chaincode \
+         deploy_one_channel create_and_join_one_channel ensure_go_sum; do \
+         grep -q \"^\$fn()\" deploy_functions.sh || { echo \"\$fn تعریف نشده\"; exit 1; }; done"
+check "بذرکاری علت شکست را پنهان نمی‌کند" \
+      "grep -q 'FIRST_ERROR' '$ROOT_DIR/scripts/seed-hospital.sh' \
+       && ! grep -q 'SeedFacilityLayout.*>/dev/null 2>&1' '$ROOT_DIR/scripts/seed-hospital.sh'"
 check "مولد لوله ناامن head ندارد" \
       "! grep -E '^[^#]*\\| *(sort *\\|)? *head ' '$ROOT_DIR/scripts/generateChaincodes_hospital.sh'"
 check "مولد تله خطا دارد (مرگ بی‌صدا ممکن نیست)" \

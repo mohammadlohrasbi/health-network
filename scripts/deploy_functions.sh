@@ -190,8 +190,34 @@ install_one_chaincode() {
 
 
 # --------- approve + commit یک قرارداد روی یک کانال ---------
+
+# --------- توالی بعدی یک قرارداد روی یک کانال ---------
+# فابریک برای هر بازتعریف قرارداد، توالی باید دقیقاً یکی بیشتر
+# از توالی فعلی باشد. با عدد ثابت ۱، هر تغییر کد یعنی بازسازی
+# کل شبکه.
+#
+# اگر قرارداد هنوز روی کانال نباشد، querycommitted خطا می‌دهد و
+# توالی ۱ درست است.
+next_sequence() {
+  local ch="$1" name="$2" out cur
+  out=$(docker exec \
+    -e CORE_PEER_LOCALMSPID=org1MSP \
+    -e CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/fabric/admin-msp \
+    -e CORE_PEER_ADDRESS=peer0.org1.example.com:7051 \
+    peer0.org1.example.com peer lifecycle chaincode querycommitted \
+      --channelID "$ch" --name "$name" 2>/dev/null) || { echo 1; return 0; }
+
+  cur=$(echo "$out" | sed -n 's/.*[Ss]equence: \([0-9]\+\).*/\1/p' | tr -d '\n')
+  if [ -z "$cur" ]; then echo 1; else echo $((cur + 1)); fi
+}
+
 approve_commit_one() {
   local name="$1" ch="$2" pkgid="$3"
+
+  local SEQ VER
+  SEQ=$(next_sequence "$ch" "$name")
+  VER="1.$((SEQ - 1))"
+  [ "$SEQ" -gt 1 ] && log "  ارتقای $name روی $ch → توالی $SEQ"
 
   log "  approve موازی $name روی ۸ سازمان..."
   for i in {1..8}; do
@@ -204,8 +230,8 @@ approve_commit_one() {
       -e CORE_PEER_TLS_ENABLED=false \
       $PEER peer lifecycle chaincode approveformyorg \
         -o orderer.example.com:7050 \
-        --channelID $ch --name $name --version 1.0 \
-        --package-id "$pkgid" --sequence 1 \
+        --channelID $ch --name $name --version "$VER" \
+        --package-id "$pkgid" --sequence "$SEQ" \
         --signature-policy "$CC_POLICY"
   done
   wait
@@ -222,11 +248,11 @@ approve_commit_one() {
     -e CORE_PEER_TLS_ENABLED=false \
     peer0.org1.example.com peer lifecycle chaincode commit \
       -o orderer.example.com:7050 \
-      --channelID $ch --name $name --version 1.0 --sequence 1 \
+      --channelID $ch --name $name --version "$VER" --sequence "$SEQ" \
       --signature-policy "$CC_POLICY" \
       $PEER_ARGS  \
-    && success "✅ $name روی $ch commit شد" \
-    || log "هشدار: commit $name/$ch ناموفق"
+    && success "✅ $name روی $ch commit شد (توالی $SEQ)" \
+    || { log "خطا: commit $name/$ch ناموفق (توالی $SEQ)"; return 1; }
 }
 
 

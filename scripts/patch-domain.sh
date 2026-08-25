@@ -1207,12 +1207,18 @@ fi
 
 
 # ── ۲۶. دور نوزدهم: خلاصه آمادگی بنچمارک ───────────────
-# پس از راه‌اندازی، کاربر باید بداند **دقیقاً چه چیزی آماده
-# است** و قدم بعدی چیست. متن پایانی فعلی از پروژه 6G مانده و
-# درباره آنتن و 6G حرف می‌زند.
+# 🔴 نسخه اول این پچ خودش باگ داشت: متن پایانی داخل یک heredoc
+# با جداکننده `NEXT` است، ولی من با `EOSUM` بستمش. جداکننده
+# هرگز تطبیق نکرد، پس حلقه `for` و `cat <<'EOSUM2'` به‌جای اجرا
+# **متن خام** چاپ شدند.
+#
+# درس: پیش از تزریق داخل heredoc، جداکننده واقعی را بخوان.
+# اینجا اصلاً داخلش نمی‌رویم — بلوک `cat <<'NEXT' ... NEXT` را
+# کامل جایگزین می‌کنیم.
 log "دور نوزدهم: خلاصه آمادگی بنچمارک"
 
-if [ "$DRY_RUN" != "1" ] && ! grep -q 'آمادگی بنچمارک' "$ROOT_DIR/scripts/bootstrap-secure.sh"; then
+if [ "$DRY_RUN" != "1" ] && ! grep -q 'آزمایش شاهد' "$ROOT_DIR/scripts/bootstrap-secure.sh"; then
+  mkdir -p "$BK/scripts"
   cp "$ROOT_DIR/scripts/bootstrap-secure.sh" "$BK/scripts/bootstrap-secure.sum.sh"
   node - "$ROOT_DIR" <<'NODEEOF'
 const fs = require('fs');
@@ -1220,15 +1226,38 @@ const path = require('path');
 const p = path.join(process.argv[2], 'scripts', 'bootstrap-secure.sh');
 let s = fs.readFileSync(p, 'utf8');
 
-const re = /آزمایشی که حالا ممکن شد و پیش از این نبود:[\s\S]*?\.\/setup-raft\.sh solo[^\n]*\n/;
-if (!re.test(s)) { console.log('  متن پایانی پیدا نشد — رد شد'); process.exit(0); }
+// جداکننده واقعی را از خود فایل بخوان، حدس نزن.
+const open = /cat <<'(\w+)'\n/g;
+let m, last = null;
+while ((m = open.exec(s))) last = m;
+if (!last) { console.log('  هیچ heredoc پایانی پیدا نشد — رد شد'); process.exit(0); }
+const delim = last[1];
+const endRe = new RegExp('\\n' + delim + '\\n?$');
+if (!endRe.test(s)) { console.log(`  heredoc ${delim} تا انتهای فایل بسته نمی‌شود — رد شد`); process.exit(0); }
 
-s = s.replace(re, `آمادگی بنچمارک:
-EOSUM
+const head = s.slice(0, last.index);
+
+const BLOCK = `cat <<'${delim}'
+
+بررسی‌های پیشنهادی:
+
+  # رهبر خوشه
+  docker logs orderer.example.com 2>&1 | grep -i leader | tail -3
+
+  # تحمل خطا — نود رهبر را بخوابانید و ببینید شبکه کار می‌کند
+  docker stop orderer.example.com
+  ./deploy-staged.sh list          # باید همچنان جواب بدهد
+  docker start orderer.example.com
+
+${delim}
+
+echo "آمادگی بنچمارک:"
 for _ch in $CHANNELS; do
-    printf '  %-20s %s\\n' "$_ch" "$(./deploy-staged.sh list 2>/dev/null | grep "$_ch" | grep -oE '[0-9]+/[0-9]+' | head -1)"
+    _st=$(./deploy-staged.sh list 2>/dev/null | grep -E "^\\\\s*\${_ch}\\\\s" | grep -oE '[0-9]+/[0-9]+' | head -1)
+    printf '  %-20s %s\\n' "$_ch" "\${_st:-نامشخص}"
 done
-cat <<'EOSUM2'
+
+cat <<'${delim}'
 
 آزمایش شاهد — همان شبکه، همان سیاست، تنها تفاوت کار chaincode:
   admissionchannel  ۷ قرارداد selector — تریاژ NEWS2، انتخاب مرکز از
@@ -1244,7 +1273,7 @@ cat <<'EOSUM2'
 
 آزمایش‌های دیگری که این معماری ممکن کرد:
   # بهای تحمل خطا — همان بنچمارک با solo و با Raft
-  ./setup-raft.sh solo && ...بازسازی از گام ۵
+  ./setup-raft.sh solo   # سپس بازسازی از گام ۵
 
   # منحنی گذردهی بر حسب تعداد امضا
   CC_POLICY="OutOf(3,...)" ./upgrade-chaincode.sh admissionchannel
@@ -1252,11 +1281,13 @@ cat <<'EOSUM2'
   # کنترل پذیرش و کلید داغ (۱۲ مرکز، نرخ بالا → تعارض MVCC)
   TRACK_BEDS=1 ./seed-hospital.sh admissionchannel
 
-ارتقای قرارداد بدون بازسازی شبکه:
+ارتقای قرارداد بدون بازسازی شبکه — دیگر لازم نیست شبکه را از نو بسازید:
   ./upgrade-chaincode.sh admissionchannel
-`);
-fs.writeFileSync(p, s);
-console.log('  خلاصه آمادگی بنچمارک اضافه شد');
+${delim}
+`;
+
+fs.writeFileSync(p, head + BLOCK);
+console.log(`  خلاصه بازنویسی شد (جداکننده: ${delim})`);
 NODEEOF
   bash -n "$ROOT_DIR/scripts/bootstrap-secure.sh" || { echo "  ✗ نحو bootstrap شکست"; exit 1; }
 fi
@@ -1332,6 +1363,25 @@ check "bootstrap مسیر نسبی به پوشه‌های ریشه ندارد" \
 check "متن پایانی درباره دامنه سلامت است نه 6G" \
       "grep -q 'آزمایش شاهد' '$ROOT_DIR/scripts/bootstrap-secure.sh' \
        && ! grep -q 'ادبیات شبکه‌های 6G' '$ROOT_DIR/scripts/bootstrap-secure.sh'"
+# 🔴 هر heredoc باید با **همان** جداکننده‌ای که باز شده بسته شود.
+# نسخه اول این پچ با EOSUM بست در حالی که NEXT باز شده بود، و
+# حلقه for به‌جای اجرا متن خام چاپ شد. با python بررسی می‌شود
+# چون منطقش در یک خط bash جا نمی‌شود.
+check "همه heredoc های اسکریپت‌ها متوازن‌اند" \
+      "cd '$ROOT_DIR/scripts' && python3 -c \"
+import re,sys,glob
+bad=[]
+for f in glob.glob('*.sh'):
+    st=[]
+    for ln in open(f,encoding='utf-8',errors='replace'):
+        m=re.match(r\\\"\\s*(?:[\\w.]+=)?.*<<-?\\s*'?([A-Za-z_][A-Za-z_0-9]*)'?\\s*\\\$\\\",ln)
+        if m and 'heredoc' not in ln: st.append(m.group(1)); continue
+        if st and ln.strip()==st[-1]: st.pop()
+    if st: bad.append((f,st))
+if bad:
+    for f,st in bad: print(f, st)
+    sys.exit(1)
+\""
 check "کانال شاهد خودکار اضافه می‌شود" \
       "cd '$ROOT_DIR/scripts' && out=\$(ROOT_DIR='$ROOT_DIR' CHANNELS=datachannel bash bootstrap-secure.sh 2>&1) ; \
        echo \"\$out\" | grep -q 'کانال شاهد' \

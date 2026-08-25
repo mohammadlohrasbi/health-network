@@ -1292,6 +1292,70 @@ NODEEOF
   bash -n "$ROOT_DIR/scripts/bootstrap-secure.sh" || { echo "  ✗ نحو bootstrap شکست"; exit 1; }
 fi
 
+
+# ── ۲۷. دور بیستم: بذرکاری کانال‌های ناموجود را رد کند ──
+# 🔴 `./seed-hospital.sh` بدون آرگومان هر ۲۰ کانال را می‌زند، ولی
+# در عمل معمولاً دو تا ساخته شده. نتیجه: ۹۵ شکست با پیام
+# «channel not found»، خروج با کد ۱، و فهرست بلندی از «قرارداد
+# ناموفق» که هیچ‌کدام واقعاً ناموفق نیستند.
+#
+# این دقیقاً برعکس «سکوتِ موفق» است: **سروصدای شکست** برای چیزی
+# که اصلاً خطا نیست. هر دو یک ضرر دارند — خطای واقعی گم می‌شود.
+#
+# رفع: پیش از حلقه، فهرست کانال‌های واقعی را از peer بگیر و
+# ناموجودها را با یک خط توضیح رد کن.
+log "دور بیستم: رد کردن کانال‌های ناموجود در بذرکاری"
+
+if [ "$DRY_RUN" != "1" ] && ! grep -q 'LIVE_CHANNELS' "$ROOT_DIR/scripts/seed-hospital.sh"; then
+  mkdir -p "$BK/scripts"
+  cp "$ROOT_DIR/scripts/seed-hospital.sh" "$BK/scripts/seed-hospital.live.sh"
+  node - "$ROOT_DIR" <<'NODEEOF'
+const fs = require('fs');
+const path = require('path');
+const p = path.join(process.argv[2], 'scripts', 'seed-hospital.sh');
+let s = fs.readFileSync(p, 'utf8');
+const before = s;
+
+const FILTER = `
+# ── فقط کانال‌هایی که واقعاً روی peer هستند ──────────────
+# بدون این، اجرای بدون آرگومان هر ۲۰ کانال را می‌زند و برای
+# ۱۸ تای ساخته‌نشده «channel not found» می‌گیرد — ۹۵ شکست
+# ساختگی که خطای واقعی را زیر خودش دفن می‌کند.
+if [ "$DRY_RUN" != "1" ]; then
+  LIVE_CHANNELS="$(docker exec peer0.org1.example.com peer channel list 2>/dev/null \\
+    | tail -n +2 | tr -d '\\r' | xargs || true)"
+  if [ -n "$LIVE_CHANNELS" ]; then
+    KEEP=(); SKIP=""
+    for ch in "\${CHANNELS[@]}"; do
+      case " $LIVE_CHANNELS " in
+        *" $ch "*) KEEP+=("$ch") ;;
+        *) SKIP="$SKIP $ch" ;;
+      esac
+    done
+    if [ -n "$SKIP" ]; then
+      log "کانال‌های ساخته‌نشده رد شدند:$SKIP"
+      log "  (برای ساختنشان: ./deploy-staged.sh channel <نام>)"
+    fi
+    if [ \${#KEEP[@]} -eq 0 ]; then
+      echo "خطا: هیچ‌کدام از کانال‌های خواسته‌شده روی peer نیست." >&2
+      echo "کانال‌های موجود: $LIVE_CHANNELS" >&2
+      exit 1
+    fi
+    CHANNELS=("\${KEEP[@]}")
+  else
+    log "هشدار: فهرست کانال‌های peer خوانده نشد — همه را امتحان می‌کنم"
+  fi
+fi
+`;
+
+s = s.replace(/(log "کانال‌ها: \$\{CHANNELS\[\*\]\}")/, FILTER + '\n$1');
+
+if (s === before) console.error('  هشدار: نقطه اتصال در seed-hospital پیدا نشد');
+else { fs.writeFileSync(p, s); console.log('  فیلتر کانال‌های زنده اضافه شد'); }
+NODEEOF
+  bash -n "$ROOT_DIR/scripts/seed-hospital.sh" || { echo "  ✗ نحو seed-hospital شکست"; exit 1; }
+fi
+
 # ── تأیید ───────────────────────────────────────────────
 if [ "$DRY_RUN" = "1" ]; then
   log "DRY_RUN — هیچ تغییری اعمال نشد"
@@ -1446,6 +1510,11 @@ check "توابع صداشده در اسکریپت‌ها تعریف شده‌ا
       "cd '$ROOT_DIR/scripts' && for fn in invoke_chaincode query_chaincode \
          deploy_one_channel create_and_join_one_channel ensure_go_sum; do \
          grep -q \"^\$fn()\" deploy_functions.sh || { echo \"\$fn تعریف نشده\"; exit 1; }; done"
+# 🔴 «سروصدای شکست» به اندازه «سکوتِ موفق» بد است: ۹۵ خطای
+# ساختگی برای کانال‌های ساخته‌نشده، خطای واقعی را دفن می‌کند.
+check "بذرکاری کانال ناموجود را رد می‌کند نه شکست" \
+      "grep -q 'LIVE_CHANNELS' '$ROOT_DIR/scripts/seed-hospital.sh' \
+       && grep -q 'کانال‌های ساخته‌نشده رد شدند' '$ROOT_DIR/scripts/seed-hospital.sh'"
 check "بذرکاری علت شکست را پنهان نمی‌کند" \
       "grep -q 'FIRST_ERROR' '$ROOT_DIR/scripts/seed-hospital.sh' \
        && ! grep -q 'SeedFacilityLayout.*>/dev/null 2>&1' '$ROOT_DIR/scripts/seed-hospital.sh'"
@@ -1480,6 +1549,24 @@ check "کانال ناشناخته در deploy سکوتِ موفق نمی‌ده
 # هر نام کانالی که bootstrap **به کار می‌برد** باید در نگاشت
 # باشد. نام‌های 6G که فقط در LEGACY_CHANNEL به عنوان کلید ترجمه
 # می‌آیند مستثنا هستند — آنها عمداً ناموجودند.
+# 🔴 سند هم مثل کد کهنه می‌شود. RUNBOOK پس از ترجمه هنوز
+# datachannel، SINR و generateChaincodes_part*.sh داشت — یعنی
+# دستورهایی که اجرا نمی‌شوند. این بررسی هر نام کانال، قرارداد و
+# اسکریپتِ نام‌برده در RUNBOOK را با واقعیت تطبیق می‌دهد.
+check "RUNBOOK به کانال یا قرارداد ناموجود ارجاع نمی‌دهد" \
+      "cd '$ROOT_DIR' && node -e '
+        const fs=require(\"fs\");
+        const {CHANNEL_CHAINCODE_MAP,CONTRACT_FN}=require(\"./server/contract-fn-map.js\");
+        const t=fs.readFileSync(\"RUNBOOK.md\",\"utf8\");
+        const bad=[...new Set([...t.matchAll(/\\b(\\w+channel)\\b/g)].map(m=>m[1]))]
+          .filter(c=>!(c in CHANNEL_CHAINCODE_MAP) && !/^deploy_|^resolve_/.test(c));
+        const badcc=[...new Set([...t.matchAll(/-n (\\w+)/g)].map(m=>m[1]))]
+          .filter(c=>!(c in CONTRACT_FN));
+        if(bad.length||badcc.length){console.error(bad,badcc);process.exit(1);}'"
+check "RUNBOOK به اسکریپت غایب ارجاع نمی‌دهد" \
+      "cd '$ROOT_DIR' && [ -z \"\$(grep -oE '(\\./|node |bash )[a-zA-Z0-9_-]+\\.(sh|js)' RUNBOOK.md \
+         | sed -e 's#^\\./##' -e 's#^node ##' -e 's#^bash ##' | sort -u \
+         | while read f; do [ -f \"scripts/\$f\" ] || [ -f \"server/\$f\" ] || [ -f \"\$f\" ] || echo \"\$f\"; done)\" ]"
 check "کانال‌های bootstrap در نگاشت وجود دارند" \
       "cd '$ROOT_DIR/server' && node -e '
         const fs=require(\"fs\");

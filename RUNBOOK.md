@@ -1,11 +1,16 @@
 # دستورالعمل اجرا — صفر تا صد
 
-> **توجه:** این RUNBOOK از پروژه 6g-network-raft به ارث رسیده و
-> برای شبکه سلامت ترجمه شده است. بخش‌های زیرساخت (CA، TLS، Raft،
-> عیب‌یابی) بدون تغییر معتبرند چون آن لایه دامنه‌مستقل است. بخش‌های
-> مربوط به قراردادها با معادل سلامت جایگزین شده‌اند. برای معماری و
-> تصمیمات طراحی به `README.md` مراجعه کنید.
+> **وضعیت این سند:** لایهٔ زیرساخت (CA، TLS، Raft، عیب‌یابی) از پروژهٔ
+> 6g-network-raft به ارث رسیده و بدون تغییر معتبر است — آن لایه
+> کاملاً دامنه‌مستقل است. بخش‌های قرارداد، بذرکاری و تست برای دامنهٔ
+> سلامت بازنویسی شده‌اند و با وضعیت واقعی سرور می‌خوانند. برای
+> معماری و تصمیمات طراحی به `README.md` مراجعه کنید.
 
+> **وضعیت فعلی سرور:** دو کانال مستقر و بذرکاری شده —
+> `admissionchannel` (۷ قرارداد selector) و `auditchannel`
+> (۷ قرارداد ledger). ۱۴ هدف بنچمارک آماده. افزودن ۱۸ کانال دیگر
+> هر وقت خواستید ممکن است، بدون بازسازی شبکه — بخش
+> [گسترش به همه کانال‌ها](#گسترش-به-همه-کانالها).
 
 شبکهٔ هایپرلجر فابریک برای شبکهٔ ملی سلامت: هشت MSP در نقش دامنه اعتماد
 (وزارت بهداشت، بیمه، غذا و دارو، آمار سلامت، اورژانس، بیمارستان دولتی،
@@ -23,7 +28,9 @@
 | شبکه بالاست، فقط فایل‌ها را به‌روز می‌کنید | [مسیر B](#مسیر-b--بهروزرسانی-شبکه-موجود) |
 | شبکه بالاست و می‌خواهید TLS یا Raft اضافه کنید | [مسیر C](#مسیر-c--افزودن-tls-یا-raft) |
 
-هر سه به [فاز تست](#فاز-تست) می‌رسند.
+| فقط می‌خواهید عدد بگیرید، شبکه بالاست | [فاز تست](#فاز-تست) |
+
+هر سه مسیر به [فاز تست](#فاز-تست) می‌رسند.
 
 ---
 
@@ -156,7 +163,7 @@ chmod +x /root/health-network/scripts/*.sh /root/health-network/server/*.sh
 ```bash
 cd /root/health-network/scripts
 DRY_RUN=1 ./bootstrap-secure.sh
-NODES=3 CHANNELS="datachannel" ./bootstrap-secure.sh
+NODES=3 ./bootstrap-secure.sh          # پیش‌فرض: admissionchannel + auditchannel
 ```
 
 کل زنجیره را با ترتیب درست اجرا می‌کند و پیش از پاک کردن شبکهٔ فعلی تأیید
@@ -307,25 +314,55 @@ done
 ### A4 — تولید قراردادها
 
 **از داخل `scripts/` اجرا کنید.** قراردادها در `scripts/chaincode/`
-می‌نشینند و `deploy_functions.sh` همان‌جا را می‌گردد.
+می‌نشینند و `deploy_functions.sh` همان‌جا را می‌گردد. اگر جای دیگری
+تولید شوند، نصب با `directory not found` رد می‌شود.
 
 ```bash
 cd /root/health-network/scripts
-for f in generateChaincodes_part*.sh; do bash "$f"; done
+node gen-hospital-contracts.js          # کد + مانیفست امضاها
+bash generateChaincodes_hospital.sh     # تولید + کامپایل
 ```
 
-اسکریپت مکانی **خودش یک قرارداد را کامپایل می‌کند** و اگر شکست بخورد
-متوقف می‌شود. تا `build OK` نبینید جلو نروید.
+**ترتیب مهم است.** `generateChaincodes_hospital.sh` خودش یک فایل
+**تولیدشده** است. اگر `gen-hospital-contracts.js` عوض شده باشد ولی
+مولد اجرا نشود، نسخهٔ قدیمی commit شده حاکم می‌ماند — باگی که یک بار
+دو دور کامل راه‌اندازی را هدر داد. `bootstrap-secure.sh` هر دو خط را
+می‌زند.
+
+اسکریپت **خودش کامپایل می‌کند** و اگر شکست بخورد `exit 1` می‌دهد. تا
+`کامپایل موفق` نبینید جلو نروید:
+
+```
+حل وابستگی‌ها (یک بار برای همه)
+  110 پوشه — مرجع: AcceptReferral
+کامپایل AcceptReferral برای اعتبارسنجی
+توزیع go.mod و go.sum به بقیه قراردادها
+go.mod و go.sum در 109 پوشه دیگر قرار گرفت
+کامپایل VerifyProtocolAdherence برای تأیید توزیع
+کامپایل موفق. 110 قرارداد آماده استقرار
+```
+
+بررسی:
 
 ```bash
-ls chaincode | wc -l                                   # 86
-grep -l SeedFacilityLayout chaincode/*/chaincode.go | wc -l   # 34
-node check-go.js generateChaincodes_hospital.sh         # ✅
+ls chaincode | wc -l                                # 110
+ls chaincode/*/go.sum | wc -l                       # 110
+node check-go.js generateChaincodes_hospital.sh     # ✅
 ```
 
-هر قرارداد دو فایل دارد: `chaincode.go` مختص خودش و `shared.go` که مدل
-رادیویی و بازار در آن است. چون همه یک `shared.go` دارند، اگر یکی کامپایل
-شود بقیه هم می‌شوند.
+هر قرارداد سه فایل دارد: `chaincode.go` مختص خودش، `shared.go` که
+هستهٔ مشترک (تریاژ، انتخاب مرکز، بازار، `clinical.go`) در آن است، و
+`go.mod`/`go.sum`.
+
+⚠️ **نکتهٔ `go.sum`:** هر پوشهٔ قرارداد یک **ماژول Go مستقل** است. اینکه
+همه یک `shared.go` دارند صحت کد را تضمین می‌کند، ولی `go build` بدون
+`go.sum` در همان پوشه رد می‌شود. مولد یک بار `go mod tidy` می‌زند و
+سپس **هم `go.mod` و هم `go.sum`** را به هر ۱۱۰ پوشه توزیع می‌کند —
+`go mod tidy` بلوک `require` را با وابستگی‌های غیرمستقیم پر می‌کند، پس
+توزیع فقط `go.sum` کافی نیست.
+
+اگر `go mod tidy` شکست خورد، دسترسی شبکه به `proxy.golang.org` و
+`sum.golang.org` را بررسی کنید.
 
 ### A5 — بلوک پیدایش
 
@@ -391,39 +428,66 @@ docker logs orderer.example.com 2>&1 | grep -i "leader\|raft" | tail -5
 
 ```bash
 cd ../scripts
-./deploy-staged.sh channel datachannel
+./deploy-staged.sh channel admissionchannel
+./deploy-staged.sh channel auditchannel
 ./deploy-staged.sh list
 ```
 
-**`list` تنها راه مطمئن است.** اسکریپت استقرار حتی با صفر قرارداد commit
-شده «موفق» اعلام می‌کند. باید `datachannel  4/4` ببینید.
+**`list` تنها راه مطمئن است.** در نسخه‌های قدیمی، اسکریپت استقرار حتی
+با صفر قرارداد commit شده «موفق» اعلام می‌کرد. باید این را ببینید:
 
-برای هر بیست کانال — سی تا چهل دقیقه، داخل `tmux`:
+```
+admissionchannel       7/7 قرارداد commit شده
+auditchannel           7/7 قرارداد commit شده
+```
+
+`bootstrap-secure.sh` این دو را خودکار می‌سازد. کانال شاهد
+(`auditchannel`) حتی اگر نخواسته باشید اضافه می‌شود، چون بدون آن عدد
+بنچمارک با هیچ چیز قابل مقایسه نیست. برای خاموش کردنش `WITH_CONTROL=0`.
+
+برای هر بیست کانال — سی تا چهل دقیقه و پرحافظه، داخل `tmux`:
 
 ```bash
 tmux new -s deploy
 ./deploy-staged.sh all
 ```
 
-### A8 — بذرکاری چیدمان مرکز درمانی
+### A8 — بذرکاری چیدمان مراکز
 
-**اختیاری نیست.** بدون آن هر تراکنش روی سی و چهار قرارداد مکانی با
-`no facility layout yet` رد می‌شود.
-
-```bash
-./seed-hospital.sh datachannel
-```
-
-سی و هفت فراخوانی `SeedFacilityLayout` — یکی به‌ازای هر جفت کانال-قرارداد. چرا
-سی و هفت و نه سی و چهار؟ سه قرارداد روی دو کانال‌اند و **هر chaincode در
-فابریک فضای حالت مستقل دارد**، پس رجیستری مرکز درمانی مشترک ممکن نیست.
+**اختیاری نیست.** بدون آن هر تراکنش روی قراردادهای `selector` با
+`چیدمان مراکز بذرکاری نشده` رد می‌شود، و قراردادهای `ledger` هم چون
+`commit()` پیکربندی را می‌خواند، همان خطا را می‌دهند.
 
 ```bash
-SEED=7 ./seed-hospital.sh                   # چیدمان دیگر
-FACILITIES=24 GRID_M=60000 ./seed-hospital.sh   # شبکهٔ بزرگ‌تر (کاتالوگ را هم به‌روز کنید)
-CAPACITY=200 ./seed-hospital.sh             # برای مطالعهٔ کنترل پذیرش
-VERIFY_ONLY=1 ./seed-hospital.sh            # فقط گزارش
+./seed-hospital.sh admissionchannel auditchannel
 ```
+
+یک فراخوانی `SeedFacilityLayout` به‌ازای **هر جفت کانال-قرارداد** —
+اینجا ۱۴ تا. چرا به‌ازای هر قرارداد و نه یک بار؟ چون **هر chaincode در
+فابریک فضای حالت مستقل دارد**، پس رجیستری مشترک مراکز ممکن نیست. هر
+قرارداد چیدمان خودش را از همان بذر می‌سازد و چون هسته قطعی است، همه
+دقیقاً یک نقشه می‌بینند.
+
+بدون آرگومان، فهرست کانال‌های واقعی را از peer می‌گیرد و ساخته‌نشده‌ها
+را رد می‌کند:
+
+```bash
+./seed-hospital.sh            # هر کانالی که مستقر است
+```
+
+پارامترهای دیگر:
+
+```bash
+SEED=seed-99 ./seed-hospital.sh admissionchannel        # چیدمان دیگر
+FACILITIES=24 GRID_M=60000 ./seed-hospital.sh           # شبکهٔ بزرگ‌تر
+TRACK_BEDS=1 ./seed-hospital.sh admissionchannel        # کنترل پذیرش
+DRY_RUN=1 ./seed-hospital.sh                            # فقط نمایش
+```
+
+⚠️ اگر `SEED`، `GRID_M` یا `FACILITIES` را عوض کردید، `bench-catalog.js`
+را هم به‌روز کنید. اسکریپت این ناهمخوانی را خودش تشخیص می‌دهد و
+متوقف می‌شود — چون بنچمارک بیمارانی خارج از شبکهٔ بذرکاری‌شده می‌سازد و
+همه رد می‌شوند، و شما رد را به پای شبکه می‌نویسید.
 
 بررسی:
 
@@ -431,26 +495,46 @@ VERIFY_ONLY=1 ./seed-hospital.sh            # فقط گزارش
 docker exec -e CORE_PEER_LOCALMSPID=org1MSP \
   -e CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/fabric/admin-msp \
   -e CORE_PEER_ADDRESS=peer0.org1.example.com:7051 \
-  -e CORE_PEER_TLS_ENABLED=true \
-  -e CORE_PEER_TLS_ROOTCERT_FILE=/etc/hyperledger/fabric/tls/ca.crt \
-  peer0.org1.example.com peer chaincode query -C datachannel \
-  -n LocationBasedAssignment \
-  -c '{"function":"ServingCell","Args":["dev-1","3000","4000"]}'
+  peer0.org1.example.com peer chaincode query -C admissionchannel \
+  -n RequestAdmission \
+  -c '{"function":"NetworkStatus","Args":[]}'
 ```
 
-باید سلول سرویس‌دهنده، فاصله، RSSI، SINR و ظرفیت شانون برگردد.
+باید این را برگرداند:
+
+```
+مراکز=12 تخت=2223 اشغال=0 بذر=seed-1404 ردیابی=0
+```
+
+عدد **۲۲۲۳** اتفاقی نیست — همان است که `SeedFacilities` در هر محیطی
+می‌دهد. اگر عدد دیگری دیدید، یا بذر فرق دارد یا هستهٔ قطعی روی آن
+معماری متفاوت اجرا شده (که نباید ممکن باشد و اگر شد، باگ جدی است).
+
+ارزیابی کامل یک بیمار بدون نوشتن:
+
+```bash
+docker exec -e CORE_PEER_LOCALMSPID=org1MSP \
+  -e CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/fabric/admin-msp \
+  -e CORE_PEER_ADDRESS=peer0.org1.example.com:7051 \
+  peer0.org1.example.com peer chaincode query -C admissionchannel \
+  -n RequestAdmission -c '{"function":"ValidateRequestAdmission","Args":[
+    "15000","15000","28","90","1","85","135","1","39500","8","45"]}'
+```
+
+آرگومان‌ها به ترتیب: `x y rr spo2 onOxygen sbp hr avpu tempMilliC flags
+ageYears`. این بیمار سپسیس شدید دارد (`flags=8` یعنی ترومای شدید).
+خروجی باید مرکز انتخاب‌شده، زمان سفر و دلیل پذیرش یا رد را بدهد.
 
 ### A9 — سرور و ابزارها
 
 ```bash
-node scripts/update-fn-map.js
+node scripts/gen-hospital-contracts.js   # نگاشت توابع و مانیفست امضاها
 bash server/patch-index.sh
 systemctl restart dashboard
 
 cd scripts
 ./install-test-tools.sh
-./patch-tls-detect.sh          # ← این سه پیش از خطوط بعد
-./patch-tls-paths.sh
+./patch-tls-detect.sh          # ← پیش از دو خط بعد
 node gen-caliper-network.js    # با TLS به grpcs:// می‌رود
 ./fix-tape-policy.sh
 ./fix-tape-tls.sh              # گواهی در کانفیگ‌های Tape
@@ -473,7 +557,7 @@ node gen-caliper-network.js    # با TLS به grpcs:// می‌رود
 
 ```bash
 grep -c grpcs ../test-tools/caliper-workspace/networks/connection-profile-org1.json
-grep tls_ca_cert ../test-tools/tape-configs/config-datachannel.yaml
+grep tls_ca_cert ../test-tools/tape-configs/config-admissionchannel.yaml
 ```
 
 اولی باید بیش از صفر بدهد؛ دومی مسیر یک فایل موجود. مسیر درست گواهی
@@ -483,14 +567,21 @@ grep tls_ca_cert ../test-tools/tape-configs/config-datachannel.yaml
 config/crypto-config/ordererOrganizations/example.com/msp/tlscacerts/ca-cert.pem
 ```
 
-**`patch-tls-paths.sh` مسئلهٔ دوم را حل می‌کند:** `config.js` مسیر گواهی را
-با نام‌گذاری `cryptogen` می‌سازد
+**مسئلهٔ دوم — ساختار نام‌گذاری گواهی:** `config.js` مسیر را با
+نام‌گذاری `cryptogen` می‌سازد
 (`.../orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem`)
 ولی `network.sh` از `fabric-ca` استفاده می‌کند و ساختار دیگری می‌سازد
-(`.../ordererOrganizations/example.com/msp/tlscacerts/ca-cert.pem`). تا وقتی
-TLS خاموش بود این مسیر خوانده نمی‌شد؛ حالا Tape سر آن می‌ایستد.
+(`.../ordererOrganizations/example.com/msp/tlscacerts/ca-cert.pem`).
 
-`bootstrap-secure.sh` هر دو وصله را خودکار اعمال می‌کند.
+در پروژهٔ 6G برای این یک `patch-tls-paths.sh` جدا لازم بود. اینجا
+لازم نیست: `fix-tape-tls.sh` مسیر واقعی را با `find` پیدا می‌کند و
+به هر دو ساختار کار می‌کند. اگر باز هم Tape گواهی را پیدا نکرد، مسیر
+را دستی بررسی کنید:
+
+```bash
+find config/crypto-config/ordererOrganizations -path '*msp/tlscacerts/*.pem'
+```
+
 
 ### A10 — امنیت داشبورد
 
@@ -508,13 +599,12 @@ systemctl restart dashboard
 cd /path/to/health-network-complete && ./install.sh /root/health-network
 
 cd /root/health-network/scripts
-bash generateChaincodes_hospital.sh     # تا build OK
-./generateChaincodes_hospital.sh datachannel       # sequence را از شبکه می‌خواند
-./seed-hospital.sh datachannel
+bash generateChaincodes_hospital.sh              # تا build OK
+./upgrade-chaincode.sh admissionchannel          # sequence را از شبکه می‌خواند
+./upgrade-chaincode.sh auditchannel
 ./patch-tls-detect.sh
-./patch-tls-paths.sh
 node gen-caliper-assets.js --force
-node update-fn-map.js
+node gen-hospital-contracts.js
 bash ../server/patch-index.sh
 systemctl restart dashboard
 ```
@@ -550,12 +640,35 @@ Raft بازسازی می‌خواهد، چون نوع سرویس ترتیب‌د
 ./setup-raft.sh 3
 ./deploy-staged.sh artifacts
 cd ../config && docker compose down && docker compose --profile raft up -d
-cd ../scripts && ./deploy-staged.sh channel datachannel && ./seed-hospital.sh datachannel
+cd ../scripts
+for ch in admissionchannel auditchannel; do
+    ./deploy-staged.sh channel "$ch" && ./seed-hospital.sh "$ch"
+done
 ```
 
 ---
 
 ## فاز تست
+
+> **وضعیت فعلی:** دو کانال مستقر و بذرکاری شده‌اند —
+> `admissionchannel` و `auditchannel`. این دقیقاً همان چیزی است که
+> برای اولین اعداد لازم دارید. افزودن بقیه در بخش «گسترش به همه
+> کانال‌ها» پایین آمده.
+
+### چرا همین دو کانال
+
+این تصادفی نیست. کل هدف طراحی، یک **آزمایش شاهد تمیز** بود:
+
+| کانال | ۷ قرارداد | هر تراکنش چه می‌کند |
+|---|---|---|
+| `admissionchannel` | `selector` | ۱۳ پارامتر · تریاژ NEWS2 · خواندن ۱۲ رکورد مرکز · محاسبه فاصله، زمان سفر و ترافیک برای هر مرکز · کنترل پذیرش · **می‌تواند رد کند** |
+| `auditchannel` | `ledger` | ۳ پارامتر · یک `PutState` · بدون هیچ شرطی · **هرگز رد نمی‌کند** |
+
+همان شبکه، همان خوشه Raft، همان سیاست تأیید، همان بذر. تنها متغیر،
+کاری است که chaincode انجام می‌دهد. اختلاف گذردهی این دو = **هزینه
+پیچیدگی chaincode**، بدون هیچ متغیر مزاحم.
+
+در پروژه 6G این آزمایش پیشنهاد شد ولی هرگز انجام نشد.
 
 ### پیش از هر عددی: سیاست تأیید
 
@@ -573,8 +686,8 @@ cd ../scripts && ./deploy-staged.sh channel datachannel && ./seed-hospital.sh da
 ./fix-tape-policy.sh majority   # فرضی
 ```
 
-اثرش را بدانید: baseline قدیمی با ۵از۸ حدود ۶۶ tps بود؛ با سیاست درست
-همان بار **۱۱۲ tps** شد.
+اثرش را بدانید: در پروژه 6G baseline با ۵از۸ حدود ۶۶ tps بود؛ با سیاست
+درست همان بار **۱۱۲ tps** شد. نزدیک به دو برابر، فقط از یک تنظیم.
 
 ### از رابط وب
 
@@ -582,16 +695,18 @@ cd ../scripts && ./deploy-staged.sh channel datachannel && ./seed-hospital.sh da
 
 چهار انتخاب مستقل:
 
-**دامنه** — یک قرارداد، یک کانال، چند کانال، دستچین، کل شبکه. هشتاد و نه
-هدف پیش‌فرض؛ تنها استثنا `GetPolicy` که تابع نوشتنی ندارد.
+**دامنه** — یک قرارداد، یک کانال، چند کانال، دستچین، کل شبکه. با دو
+کانال فعلی **۱۴ هدف** در دسترس است (۷ + ۷). اگر همه کانال‌ها را مستقر
+کنید، ۱۰۹ هدف می‌شود — تنها استثنا `BalanceOf` که تابع نوشتنی ندارد.
 
-**عملیات بازار** — «Add market operations» یا «Market operations only».
-با بازار، هشتاد و نه هدف به دویست و هفتاد و چهار می‌رسد.
+**ابزار** — دو تب مجزا، Tape و Caliper. هر کدام چیز متفاوتی می‌سنجند
+(بخش بعد).
 
-**ابزار** — دو تب مجزا.
+**هم‌زمانی** — «Targets at once». یک یعنی هر هدف در انزوا؛ بیشتر یعنی
+چند هدف با هم زیر بار، که به شبکهٔ واقعی نزدیک‌تر است.
 
-**هم‌زمانی** — «Targets at once». یک یعنی هر هدف در انزوا؛ بیشتر یعنی چند
-کانال با هم زیر بار، که به شبکهٔ واقعی نزدیک‌تر است.
+**عملیات بازار** — با دو کانال فعلی در دسترس **نیست**، چون قراردادهای
+بازار روی `marketchannel` هستند. برای فعال شدنش آن کانال را مستقر کنید.
 
 ### هم‌زمانی و متریکی که فقط آنجا معنا دارد
 
@@ -609,14 +724,63 @@ cd ../scripts && ./deploy-staged.sh channel datachannel && ./seed-hospital.sh da
 ### ترتیب پیشنهادی برای اولین اعداد
 
 ```
-۱. یک قرارداد، Tape، ۱۰۰۰ تراکنش
-۲. همان، Caliper، ۵۰۰ با نرخ ۲۰
-۳. کل datachannel — چهار قرارداد
-۴. auditchannel — هفت قرارداد، تمیزترین پایه
-۵. کل شبکه، ۸۹ هدف
+۱. RequestAdmission تنها — Tape، ۱۰۰۰ تراکنش
+     سقف گذردهی یک قرارداد selector
+
+۲. همان — Caliper، ۵۰۰ تراکنش با نرخ ۲۰
+     تأخیر واقعی. اینجا نرخ پذیرش را هم می‌بینید.
+
+۳. LogSystemAudit تنها — همان دو آزمون
+     همان اعداد برای یک قرارداد ledger
+
+۴. کل admissionchannel — ۷ قرارداد
+۵. کل auditchannel — ۷ قرارداد، تمیزترین پایه
+
+۶. تکرار گام‌های ۴ و ۵ با Repeats=3
+     بدون تکرار، اختلاف چند درصدی قابل تفسیر نیست
 ```
 
-اگر گام یک خطا داد، مشکل در استقرار است نه بنچمارک.
+اگر گام یک خطا داد، مشکل در استقرار است نه بنچمارک — به بخش عیب‌یابی
+بروید.
+
+### گسترش به همه کانال‌ها
+
+هر کانال دیگری را می‌توانید هر وقت خواستید اضافه کنید، **بدون
+بازسازی شبکه**:
+
+```bash
+cd /root/health-network/scripts
+
+# یک کانال
+./deploy-staged.sh channel bloodchannel
+./seed-hospital.sh bloodchannel
+
+# چند کانال
+for ch in pharmacychannel bloodchannel insurancechannel; do
+    ./deploy-staged.sh channel "$ch" && ./seed-hospital.sh "$ch"
+done
+
+# همه ۲۰ کانال — طولانی و پرحافظه، شبانه اجرا کنید
+./deploy-staged.sh all
+./seed-hospital.sh            # ناموجودها را خودش رد می‌کند
+```
+
+`./seed-hospital.sh` بدون آرگومان فهرست کانال‌های واقعی را از peer
+می‌گیرد و ساخته‌نشده‌ها را رد می‌کند، پس اجرای مکررش امن است.
+
+⚠️ **هشدار حافظه:** هر کانال یک زنجیرهٔ مستقل با gossip و ledger خودش
+است. روی سرور با حدود ۳ گیگابایت آزاد، بیش از پنج تا شش کانال هم‌زمان
+ریسک دارد. برای گزارش، چهار کانال منتخب از چهار نوع رفتاری کافی است:
+
+| کانال | نوع | چرا |
+|---|---|---|
+| `admissionchannel` | selector | سنگین‌ترین منطق |
+| `auditchannel` | ledger | سبک‌ترین، خط پایه |
+| `bloodchannel` | guarded | تصمیم قطعی غیرمکانی (سازگاری ABO/Rh) |
+| `marketchannel` | market | حالت مشترک، تعارض MVCC |
+
+بذر و اندازهٔ شبکه برای همهٔ کانال‌ها یکسان است (`seed-1404`، ۳۰km،
+۱۲ مرکز)، پس اعدادشان مستقیماً قابل مقایسه‌اند.
 
 ---
 
@@ -625,7 +789,8 @@ cd ../scripts && ./deploy-staged.sh channel datachannel && ./seed-hospital.sh da
 ### Tape تأخیر گزارش نمی‌کند
 
 خروجی واقعی Tape فقط گذردهی و تعداد بلاک دارد. ستون تأخیر `n/r` است، نه
-صفر. **Tape سقف گذردهی می‌دهد، Caliper تأخیر.**
+صفر. **Tape سقف گذردهی می‌دهد، Caliper تأخیر.** این دو را به‌عنوان دو
+اندازه‌گیری از یک چیز کنار هم نگذارید.
 
 ### تأخیر شما گلوگاه شبکه نیست
 
@@ -635,37 +800,51 @@ cd ../scripts && ./deploy-staged.sh channel datachannel && ./seed-hospital.sh da
 
 ```
 ۱۰۰۰ms انتظار بلاک + ۴۰۰ms تأیید و کامیت ≈ ۱۴۰۰ms
-اندازه‌گیری واقعی                          = ۱۴۷۰ms
+اندازه‌گیری واقعی در پروژه 6G              = ۱۴۷۰ms
 ```
 
 نقطهٔ گذار: `۵۰۰ ÷ ۲ = ۲۵۰ tps`. زیر آن تأخیر ثابت است؛ با بالا رفتن نرخ
 تأخیر **کاهش** می‌یابد چون بلاک زودتر پر می‌شود. نمودار تأخیر بر حسب نرخ
 با آن کمینه، احتمالاً بهترین شکل فصل ارزیابی است.
 
+جاروی پیشنهادی: نرخ ۲۰ → ۵۰ → ۱۰۰ → ۲۰۰ روی `RequestAdmission`.
+
 ### رد شدن همیشه خطا نیست
 
-| پیام | خطاست؟ |
-|---|---|
-| `out of coverage: SINR below threshold` | ❌ خروجی مدل |
-| `cell is saturated` | ❌ خروجی مدل |
-| `no spectrum left` | ❌ خروجی مدل |
-| `relaying gains nothing` | ❌ خروجی مدل |
-| `seed does not match` | ✅ خطا |
-| `no facility layout yet` | ✅ خطا |
-| `MVCC_READ_CONFLICT` | ⚠️ بستگی دارد |
+این مهم‌ترین نکتهٔ تفسیر اعداد در این پروژه است. قراردادهای `selector`
+عمداً می‌توانند رد کنند، و آن رد **خروجی مدل** است نه شکست سامانه:
 
-`RelayFor` حدود پنجاه و سه درصد پذیرش دارد — بقیه رد واقعی‌اند چون
-سایه‌فرسایی جای رله را بهتر از کاربر نکرده. **در گزارش نرخ پذیرش را جدا از
-نرخ خطا بیاورید.**
+| پیام | خطاست؟ | معنا |
+|---|---|---|
+| `نزدیک‌ترین مرکز واجد شرایط خارج از پنجره ... است` | ❌ | بیمار سطح ۱ با پنجرهٔ ۱۵ دقیقه، مرکز ترومایش دورتر است |
+| `هیچ مرکزی توانمندی لازم را ندارد` | ❌ | مثلاً NICU در آن ناحیه نیست |
+| `همه مراکز واجد شرایط اشباع‌اند` | ❌ | فقط با `TRACK_BEDS=1` رخ می‌دهد |
+| `این بیمار مقیاس دوم NEWS2 لازم دارد` | ❌ | زیر ۱۶ سال — تصمیم خودکار عمداً ممنوع |
+| `ناسازگاری ABO/Rh` | ❌ | خروجی جدول سازگاری خون |
+| `تداخل آلرژی` / `دوز بیش از سقف` | ❌ | خروجی بررسی ایمنی دارو |
+| `چیدمان مراکز بذرکاری نشده` | ✅ | `./seed-hospital.sh <کانال>` |
+| `شبکه بذرکاری نشده` | ✅ | همان |
+| `MVCC_READ_CONFLICT` | ⚠️ | با `TRACK_BEDS=0` نباید رخ دهد |
+
+شبیه‌سازی ۲۰٬۰۰۰ بیماری نرخ پذیرش **۹۱.۸٪** پیش‌بینی می‌کند — یعنی حدود
+۸٪ رد، همه از نوع «خارج از پنجره طلایی». اگر عدد بنچمارک نزدیک این بود،
+مدل درست کار می‌کند.
+
+`auditchannel` باید **صفر رد** بدهد. اگر نداد، مشکل شبکه است نه دامنه —
+و این خودش یک تست تشخیصی مفید است.
+
+**در گزارش نرخ پذیرش را جدا از نرخ خطا بیاورید.** در جدول نتایج سه ستون
+داشته باشید: کامیت‌شده، ردشدهٔ دامنه‌ای، خطای سامانه.
 
 ### مقایسه‌های نامعتبر
 
-اعداد پیش و پس از بازنویسی قراردادها؛ Tape و Caliper به‌عنوان دو
+اعداد پیش و پس از هر تغییر قرارداد؛ Tape و Caliper به‌عنوان دو
 اندازه‌گیری از یک چیز؛ سیاست‌های تأیید متفاوت؛ بذرهای متفاوت؛ اجراهای
-تک‌باره بدون تکرار.
+تک‌باره بدون تکرار؛ و `TRACK_BEDS=0` در برابر `TRACK_BEDS=1`.
 
 پراکندگی پایهٔ Tape حدود **هفت درصد** است. هر تفاوتی کمتر از این معنادار
-نیست.
+نیست — و این دقیقاً همان بازه‌ای است که انتظار داریم اختلاف
+`admissionchannel` و `auditchannel` در آن بیفتد.
 
 ---
 
@@ -741,7 +920,7 @@ ls scripts/set-tls.sh scripts/setup-raft.sh       # هر دو
 | `DeadlineExceeded ... RST_STREAM` هنگام approve | مهلت ۳۰ ثانیه با Raft و TLS کم است | `./set-tls.sh on` مهلت را ۳۰۰ ثانیه می‌کند |
 | CLI بی‌پاسخ | فلگ TLS ندارد | `./set-tls.sh on` دوباره |
 | Caliper ۰ موفق از N، بدون خطای گواهی | پروفایل با `grpc://` و بدون `tlsCACerts` ساخته شده | `./patch-tls-detect.sh` سپس `node gen-caliper-network.js` |
-| Tape: `fail to load TLS CA Cert ... tlsca.example.com-cert.pem` | `config.js` نام‌گذاری cryptogen دارد ولی شبکه با fabric-ca ساخته شده | `./patch-tls-paths.sh` سپس `./fix-tape-policy.sh` |
+| Tape: `fail to load TLS CA Cert ... tlsca.example.com-cert.pem` | `config.js` نام‌گذاری cryptogen دارد ولی شبکه با fabric-ca ساخته شده | `./fix-tape-tls.sh` سپس `./fix-tape-policy.sh` |
 | کانفیگ‌های Tape `tls_ca_cert: ""` دارند | `install-test-tools.sh` آنها را برای شبکهٔ plaintext ساخته | `./fix-tape-tls.sh` — بدون نصب دوبارهٔ ابزارها |
 | اسکریپت دستی پیکربندی بدون TLS می‌سازد ولی سرویس درست کار می‌کند | `CORE_PEER_TLS_ENABLED` فقط در محیط سرویس ست است | `./patch-tls-detect.sh` — `config.js` را وادار می‌کند `.env` را بخواند |
 
@@ -807,25 +986,63 @@ cd /root/health-network && git add -A && git commit -m "working state"
 
 ## اسناد مرجع
 
-| سند | محتوا |
+| فایل | محتوا |
 |---|---|
-| `docs/benchmark-guide.md` | Caliper و Tape: نحوهٔ کار، ساختار، یازده آزمایش با پیش‌بینی |
-| `docs/market-guide.md` | بازار داد و ستد: چهار بازار، تقسیم موجودی، توپولوژی پول |
-| `docs/resource-management.md` | طیف، انرژی، توان، بازاستفاده فرکانسی |
-| `docs/network-roles.md` | نقش هر قرارداد و کانال در شبکه |
-| `docs/architecture-guide.md` | معماری، خانواده‌های داده، دلالت‌های ارزیابی |
-| `docs/contract-inventory.md` | فهرست هشتاد و شش قرارداد |
-| `reference/clinical.go` | هستهٔ رادیویی با توضیح هر تصمیم طراحی |
+| `README.md` | معماری، تصمیمات طراحی، هر باگی که در راه‌اندازی پیدا شد و چرا |
+| `reference/clinical.go` | هستهٔ قطعی — ۳۵ تابع، توضیح هر تصمیم طراحی و هر قید |
+| `reference/clinical_test.go` | ۱۴ آزمون؛ خواندنشان سریع‌ترین راه فهم دامنه است |
+| `reference/sim.go` | شبیه‌سازی ۲۰٬۰۰۰ بیمار — اعداد مرجع برای مقایسه با بنچمارک |
+| `scripts/channel_contract_map.sh` | ۲۰ کانال، ۱۱۰ قرارداد، چهار نوع رفتاری، نگاشت ۸ MSP |
+| `scripts/hospital-signatures.json` | امضای هر قرارداد؛ تولیدشده، همیشه با کد همگام |
+| `server/bench-catalog.js` | اهداف بنچمارک و تولید آرگومان هر پارامتر |
+| `server/scenario-core.js` | آینهٔ جاوااسکریپت هسته + بررسی همگامی با Go |
+
+اسناد `docs/` پروژه 6G (بازار، مدیریت منابع، فهرست قراردادها) در این
+پروژه معادل ندارند — محتوایشان به `README.md` و کامنت‌های `clinical.go`
+منتقل شده.
 
 ---
 
-## دو هشدار صادقانه
+## هشدارهای صادقانه
 
-**اسکریپت‌های TLS و Raft روی فابریک واقعی آزموده نشده‌اند.** ساختار
-فایل‌ها، رفت‌وبرگشت پیکربندی و ترتیب اجرا کامل آزموده شده، ولی اینکه خوشهٔ
-Raft با این گواهی‌ها رهبر انتخاب کند فقط روی سرور شما معلوم می‌شود. گام A6
-نقطهٔ حقیقت است.
+### آنچه دیگر مسئله نیست
 
-**`deploy-staged.sh` حتی با صفر قرارداد commit شده «موفق» اعلام می‌کند.**
-این باگ در اسکریپت خودِ مخزن است. `./deploy-staged.sh list` را بعد از هر
-استقرار بزنید — تنها راه مطمئن همین است.
+دو هشدار در نسخه‌های قبلی این سند بود که هر دو **رفع شده‌اند**:
+
+- ~~اسکریپت‌های TLS و Raft روی فابریک واقعی آزموده نشده‌اند~~ — خوشهٔ
+  Raft سه‌نودی روی سرور رهبر انتخاب کرد، TLS کامل کار می‌کند، و کل
+  زنجیره از CA تا commit قرارداد آزموده شد.
+- ~~`deploy-staged.sh` با صفر قرارداد «موفق» اعلام می‌کند~~ —
+  `deploy_one_channel` حالا نصب‌های موفق و ناموفق را می‌شمارد و در
+  صورت شکست `return 1` می‌دهد. با این حال `./deploy-staged.sh list`
+  را بعد از هر استقرار بزنید؛ عادت خوبی است.
+
+### آنچه هنوز مسئله است
+
+**`CommitID` یک هش رمزنگارانه نیست.** برای نمایش کافی است، برای دادهٔ
+واقعی بیمار نه. امنیتش کاملاً از محرمانه ماندن `salt` می‌آید و در برابر
+حملهٔ فرهنگ‌واژه روی فضای کوچک (شمارهٔ ملی ۱۰ رقمی) به‌تنهایی امن نیست.
+پیش از هر استفادهٔ واقعی با `HMAC-SHA256` جایگزین کنید — کتابخانهٔ
+استاندارد Go قطعی است و برای chaincode مشکلی ندارد.
+
+**Private Data Collection تعریف نشده.** دادهٔ بالینی نباید روی کانال
+اصلی برود. الان قراردادها فقط تعهد شناسه و مقادیر غیرشناسایی‌کننده
+می‌نویسند، ولی برای استقرار واقعی لایهٔ دوم لازم است.
+
+**کنترل دسترسی مبتنی بر `cid` پیاده نشده.** قراردادهای `consentchannel`
+الان MSP فرستنده را **ثبت** می‌کنند ولی بر اساس آن **تصمیم نمی‌گیرند**.
+هر عضو کانال می‌تواند هر تابعی را صدا بزند.
+
+**`PriorityScore` ابزار پشتیبان تصمیم است، نه تصمیم‌گیرنده.** تخصیص
+منابع کمیاب درمانی مسئولیت بالینی و اخلاقی است. قرارداد نمره را ثبت
+می‌کند؛ تخصیص نهایی باید به تأیید هویتی با نقش پزشک مشروط شود. در
+سناریوی بحران این تمایز حیاتی است.
+
+**`BloodCompatible` یک غربال است، نه جایگزین cross-match.** سیستم‌های
+Kell و Duffy و آنتی‌بادی‌های غیرمنتظره بررسی نمی‌شوند. خروجی را
+«سازگار از نظر ABO/Rh» برچسب بزنید، نه «قابل تزریق».
+
+**NEWS2 برای بزرگسالان ≥۱۶ سال است.** برای COPD و بارداری مقیاس دوم
+اشباع اکسیژن لازم است. `Scale2Required()` این موارد را پرچم می‌زند و
+قراردادهای `selector` در آن حالت **عمداً تصمیم نمی‌گیرند** — اگر در
+بنچمارک این رد را دیدید، رفتار درست است نه خطا.

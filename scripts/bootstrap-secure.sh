@@ -345,20 +345,21 @@ cat <<'NEXT'
   # رهبر خوشه
   docker logs orderer.example.com 2>&1 | grep -i leader | tail -3
 
-  # TLS روی peer
-  docker logs peer0.org1.example.com 2>&1 | grep -i tls | tail -3
-
   # تحمل خطا — نود رهبر را بخوابانید و ببینید شبکه کار می‌کند
   docker stop orderer.example.com
   ./deploy-staged.sh list          # باید همچنان جواب بدهد
   docker start orderer.example.com
 
-آمادگی بنچمارک:
-EOSUM
+NEXT
+
+echo "آمادگی بنچمارک:"
 for _ch in $CHANNELS; do
-    printf '  %-20s %s\n' "$_ch" "$(./deploy-staged.sh list 2>/dev/null | grep "$_ch" | grep -oE '[0-9]+/[0-9]+' | head -1)"
+    _st=$(./deploy-staged.sh list 2>/dev/null | grep -E "^[[:space:]]*${_ch}[[:space:]]" \
+          | grep -oE '[0-9]+/[0-9]+' | head -1)
+    printf '  %-20s %s\n' "$_ch" "${_st:-نامشخص}"
 done
-cat <<'EOSUM2'
+
+cat <<'NEXT'
 
 آزمایش شاهد — همان شبکه، همان سیاست، تنها تفاوت کار chaincode:
   admissionchannel  ۷ قرارداد selector — تریاژ NEWS2، انتخاب مرکز از
@@ -374,7 +375,7 @@ cat <<'EOSUM2'
 
 آزمایش‌های دیگری که این معماری ممکن کرد:
   # بهای تحمل خطا — همان بنچمارک با solo و با Raft
-  ./setup-raft.sh solo && ...بازسازی از گام ۵
+  ./setup-raft.sh solo   # سپس بازسازی از گام ۵
 
   # منحنی گذردهی بر حسب تعداد امضا
   CC_POLICY="OutOf(3,...)" ./upgrade-chaincode.sh admissionchannel
@@ -382,6 +383,6 @@ cat <<'EOSUM2'
   # کنترل پذیرش و کلید داغ (۱۲ مرکز، نرخ بالا → تعارض MVCC)
   TRACK_BEDS=1 ./seed-hospital.sh admissionchannel
 
-ارتقای قرارداد بدون بازسازی شبکه:
+ارتقای قرارداد بدون بازسازی شبکه — دیگر لازم نیست از نو بسازید:
   ./upgrade-chaincode.sh admissionchannel
 NEXT

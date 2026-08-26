@@ -1356,6 +1356,91 @@ NODEEOF
   bash -n "$ROOT_DIR/scripts/seed-hospital.sh" || { echo "  ✗ نحو seed-hospital شکست"; exit 1; }
 fi
 
+
+# ── ۲۸. دور بیست‌ویکم: قرارداد شکل catalog() ────────────
+# 🔴 `add-test-endpoint.sh` (از پروژه 6G) `c.catalog().counts`
+# می‌خواند، ولی کاتالوگ سلامت شمارنده‌ها را در **ریشه** برمی‌گرداند.
+# نتیجه: `TypeError: Cannot read properties of undefined` و
+# «برخی بررسی‌ها ناموفق» در پایان راه‌اندازی — با اینکه شبکه
+# کاملاً سالم است.
+#
+# رفع در **هر دو طرف**، چون هیچ‌کدام به‌تنهایی کافی نیست:
+#  · کاتالوگ یک `counts` هم‌نام اضافه می‌کند (قرارداد 6G را
+#    نگه می‌دارد، برای هر مصرف‌کننده‌ای که بعداً پیدا شود)
+#  · اسکریپت بررسی به هر دو شکل کار می‌کند
+log "دور بیست‌ویکم: قرارداد شکل catalog() و allTargets()"
+
+# 🔴 مورد دوم و بدتر: `gen-caliper-assets.js` روی
+# `if (!t.writable || !t.fn) continue;` می‌چرخد. کاتالوگ سلامت
+# میدان `writable` تولید نمی‌کرد، پس حلقه هر ۱۰۹ هدف را رد می‌کرد
+# و **هیچ workload نام‌داری ساخته نمی‌شد** — یعنی بنچمارک هدفمند
+# از رابط کاربری اصلاً کار نمی‌کرد. در log فقط یک خط بی‌آزار بود:
+# «0 workload نام‌دار ساخته شده».
+if [ "$DRY_RUN" != "1" ] && ! grep -q 'writable:' "$ROOT_DIR/server/bench-catalog.js"; then
+  mkdir -p "$BK/server"
+  cp "$ROOT_DIR/server/bench-catalog.js" "$BK/server/bench-catalog.writable.js"
+  node - "$ROOT_DIR" <<'NODEEOF'
+const fs = require('fs');
+const path = require('path');
+const p = path.join(process.argv[2], 'server', 'bench-catalog.js');
+let s = fs.readFileSync(p, 'utf8');
+const anchor = `        id: \`\${channel}/\${contract}\`,`;
+if (!s.includes(anchor)) { console.error('  هشدار: ساختار allTargets پیدا نشد'); process.exit(0); }
+s = s.replace(anchor, `        id: \`\${channel}/\${contract}\`,
+        // \`writable\` قرارداد نسخه 6G است. gen-caliper-assets.js
+        // با \`if (!t.writable) continue\` فیلتر می‌کند؛ بدون این
+        // میدان هیچ workload نام‌داری ساخته نمی‌شود و بنچمارک
+        // هدفمند از رابط کاربری کار نمی‌کند.
+        // اینجا هر هدف نوشتنی است — readOnly ها بالاتر فیلتر شده‌اند.
+        writable: true,
+        params: def.params,
+        caliperId: caliperId({ channel, contract }),`);
+fs.writeFileSync(p, s);
+console.log('  writable/params/caliperId به allTargets اضافه شد');
+NODEEOF
+  ( cd "$ROOT_DIR/server" && node -e 'const t=require("./bench-catalog").allTargets();
+      const bad=t.filter(x=>!x.writable||!x.params||!x.caliperId);
+      if(bad.length){console.error("  ✗",bad.length,"هدف ناقص");process.exit(1);}' )     || { echo "  ✗ اعتبارسنجی allTargets شکست"; exit 1; }
+fi
+
+if [ "$DRY_RUN" != "1" ] && ! grep -q 'counts:' "$ROOT_DIR/server/bench-catalog.js"; then
+  mkdir -p "$BK/server"
+  cp "$ROOT_DIR/server/bench-catalog.js" "$BK/server/bench-catalog.js"
+  node - "$ROOT_DIR" <<'NODEEOF'
+const fs = require('fs');
+const path = require('path');
+const p = path.join(process.argv[2], 'server', 'bench-catalog.js');
+let s = fs.readFileSync(p, 'utf8');
+
+const anchor = '    byKind,\n  };\n}';
+if (!s.includes(anchor)) { console.error('  هشدار: انتهای catalog() پیدا نشد'); process.exit(0); }
+
+s = s.replace(anchor, `    byKind,
+    // \`counts\` قرارداد نسخه 6G است: add-test-endpoint.sh و هر
+    // مصرف‌کننده‌ای که از آنجا آمده باشد اینجا را می‌خواند. همان
+    // اعداد ریشه، فقط با شکل قدیمی — تا هیچ‌کدام نشکند.
+    counts: {
+      channels: Object.keys(CHANNEL_CHAINCODE_MAP).length,
+      contracts: Object.keys(CONTRACT_FN).length,
+      targets: targets.length,
+      tapeSafe: tapeTargets().length,
+      readOnly: READ_ONLY_CONTRACTS.length,
+    },
+  };
+}`);
+fs.writeFileSync(p, s);
+console.log('  counts به catalog() اضافه شد');
+NODEEOF
+  ( cd "$ROOT_DIR/server" && node -e 'const n=require("./bench-catalog").catalog().counts;
+      if(!n||!n.channels||!n.targets) { console.error("  ✗ counts ناقص"); process.exit(1); }' ) \
+    || { echo "  ✗ اعتبارسنجی counts شکست"; exit 1; }
+fi
+
+# اسکریپت بررسی هم به هر دو شکل کار کند — اگر روزی کاتالوگ عوض
+# شد، بررسی نباید تنها نقطه شکست باشد.
+edit scripts/add-test-endpoint.sh \
+  's#const n = c.catalog().counts;#const _c = c.catalog(); const n = _c.counts || _c;#'
+
 # ── تأیید ───────────────────────────────────────────────
 if [ "$DRY_RUN" = "1" ]; then
   log "DRY_RUN — هیچ تغییری اعمال نشد"
@@ -1382,6 +1467,22 @@ check "scenario-app.js نحو درست دارد" \
       "node --check '$ROOT_DIR/public/scenario-app.js'"
 check "coverage-map.js حذف شده" \
       "[ ! -f '$ROOT_DIR/public/coverage-map.js' ]"
+# 🔴 دقیقاً همان دستوری که add-test-endpoint.sh می‌زند. اگر این
+# سبز باشد، «برخی بررسی‌ها ناموفق» در پایان راه‌اندازی نمی‌آید.
+# 🔴 بدون `writable`، صفر workload نام‌دار ساخته می‌شود و بنچمارک
+# هدفمند از رابط کاربری کار نمی‌کند — با یک خط بی‌آزار در log.
+check "allTargets میدان‌هایی که Caliper لازم دارد را می‌دهد" \
+      "cd '$ROOT_DIR/server' && node -e '
+        const t=require(\"./bench-catalog\").allTargets();
+        const bad=t.filter(x=>!x.writable||!x.params||!x.caliperId||!x.fn);
+        if(!t.length||bad.length){console.error(bad.length,\"ناقص از\",t.length);process.exit(1);}'"
+check "catalog().counts همان شکلی است که ابزارها انتظار دارند" \
+      "cd '$ROOT_DIR/server' && node -e '
+        const c=require(\"./bench-catalog\");
+        const d=c.assertCatalogInSync();
+        const n=c.catalog().counts;
+        if(d.length){console.error(\"DRIFT\",d);process.exit(1);}
+        if(!n||!n.channels||!n.targets){console.error(\"counts ناقص\");process.exit(1);}'"
 check "کاتالوگ بنچمارک بارگذاری می‌شود" \
       "cd '$ROOT_DIR/server' && node -e 'require(\"./bench-catalog\").catalog()'"
 check "home.js نحو درست دارد" \

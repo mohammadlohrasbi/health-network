@@ -1664,10 +1664,16 @@ check "RUNBOOK به کانال یا قرارداد ناموجود ارجاع ن�
         const badcc=[...new Set([...t.matchAll(/-n (\\w+)/g)].map(m=>m[1]))]
           .filter(c=>!(c in CONTRACT_FN));
         if(bad.length||badcc.length){console.error(bad,badcc);process.exit(1);}'"
-check "RUNBOOK به اسکریپت غایب ارجاع نمی‌دهد" \
-      "cd '$ROOT_DIR' && [ -z \"\$(grep -oE '(\\./|node |bash )[a-zA-Z0-9_-]+\\.(sh|js)' RUNBOOK.md \
-         | sed -e 's#^\\./##' -e 's#^node ##' -e 's#^bash ##' | sort -u \
-         | while read f; do [ -f \"scripts/\$f\" ] || [ -f \"server/\$f\" ] || [ -f \"\$f\" ] || echo \"\$f\"; done)\" ]"
+# 🔴 سند هم مثل کد کهنه می‌شود، و بدتر: خطایش فقط وقتی معلوم
+# می‌شود که کسی دستور را کپی کند. سه باگ واقعی از همین‌جا آمد —
+# `datachannel` که وجود نداشت، `patch-tls-paths.sh` که حذف شده
+# بود، و بلوک A9 که با `cd scripts` ادامه می‌داد ولی مسیرها را
+# از ریشه می‌نوشت (`scripts/scripts/gen-...js`).
+#
+# منطقش رجکس دارد و داخل یک‌خطی bash سه لایه escape می‌خواست —
+# یک بار نوشتمش و بی‌صدا هیچ‌چیز نگرفت. پس فایل جدا دارد.
+check "دستورهای RUNBOOK با درخت واقعی می‌خوانند" \
+      "python3 '$ROOT_DIR/scripts/check-runbook.py' '$ROOT_DIR'"
 check "کانال‌های bootstrap در نگاشت وجود دارند" \
       "cd '$ROOT_DIR/server' && node -e '
         const fs=require(\"fs\");

@@ -51,6 +51,7 @@ git clone https://github.com/mohammadlohrasbi/health-network.git /root/health-ne
 کار می‌کنید، با متغیر محیطی بازنویسی کنید:
 
 ```bash
+cd /root/health-network/scripts
 ROOT_DIR=/root/health-network ./bootstrap-secure.sh
 ```
 
@@ -255,6 +256,7 @@ NETWORK_TLS=true ORDERER_NODES=3 ./network.sh
 بررسی — هر دو باید جواب بدهند:
 
 ```bash
+cd /root/health-network
 ls config/crypto-config/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/
 ls config/crypto-config/ordererOrganizations/example.com/orderers/
 ```
@@ -280,6 +282,7 @@ done
 ### A2 — پیکربندی Raft
 
 ```bash
+cd /root/health-network/scripts
 ./setup-raft.sh 3
 ```
 
@@ -299,6 +302,7 @@ done
 ### A3 — روشن کردن TLS
 
 ```bash
+cd /root/health-network/scripts
 ./set-tls.sh on
 ```
 
@@ -345,6 +349,7 @@ go.mod و go.sum در 109 پوشه دیگر قرار گرفت
 بررسی:
 
 ```bash
+cd /root/health-network/scripts
 ls chaincode | wc -l                                # 110
 ls chaincode/*/go.sum | wc -l                       # 110
 node check-go.js generateChaincodes_hospital.sh     # ✅
@@ -367,6 +372,7 @@ node check-go.js generateChaincodes_hospital.sh     # ✅
 ### A5 — بلوک پیدایش
 
 ```bash
+cd /root/health-network/scripts
 ./deploy-staged.sh artifacts
 
 cd ../config
@@ -448,6 +454,7 @@ auditchannel           7/7 قرارداد commit شده
 برای هر بیست کانال — سی تا چهل دقیقه و پرحافظه، داخل `tmux`:
 
 ```bash
+cd /root/health-network/scripts
 tmux new -s deploy
 ./deploy-staged.sh all
 ```
@@ -459,6 +466,7 @@ tmux new -s deploy
 `commit()` پیکربندی را می‌خواند، همان خطا را می‌دهند.
 
 ```bash
+cd /root/health-network/scripts
 ./seed-hospital.sh admissionchannel auditchannel
 ```
 
@@ -472,12 +480,14 @@ tmux new -s deploy
 را رد می‌کند:
 
 ```bash
+cd /root/health-network/scripts
 ./seed-hospital.sh            # هر کانالی که مستقر است
 ```
 
 پارامترهای دیگر:
 
 ```bash
+cd /root/health-network/scripts
 SEED=seed-99 ./seed-hospital.sh admissionchannel        # چیدمان دیگر
 FACILITIES=24 GRID_M=60000 ./seed-hospital.sh           # شبکهٔ بزرگ‌تر
 TRACK_BEDS=1 ./seed-hospital.sh admissionchannel        # کنترل پذیرش
@@ -527,19 +537,29 @@ ageYears`. این بیمار سپسیس شدید دارد (`flags=8` یعنی ت
 
 ### A9 — سرور و ابزارها
 
+هر بلوک این سند **از پوشهٔ ریشهٔ پروژه** شروع می‌شود، نه از جایی که
+اتفاقاً ایستاده‌اید. خط اول `cd` را عمداً دارد تا کپی کردن کل بلوک
+همیشه کار کند:
+
 ```bash
+cd /root/health-network
 node scripts/gen-hospital-contracts.js   # نگاشت توابع و مانیفست امضاها
 bash server/patch-index.sh
 systemctl restart dashboard
 
-cd scripts
+cd /root/health-network/scripts
 ./install-test-tools.sh
 ./patch-tls-detect.sh          # ← پیش از دو خط بعد
+node gen-caliper-assets.js --force
 node gen-caliper-network.js    # با TLS به grpcs:// می‌رود
 ./fix-tape-policy.sh
 ./fix-tape-tls.sh              # گواهی در کانفیگ‌های Tape
 ./add-test-endpoint.sh         # همه باید ✓ باشند
 ```
+
+⚠️ `gen-caliper-assets.js` را جا نیندازید — همان است که ۱۰۹ workload
+نام‌دار Caliper را می‌سازد. بدون آن، بنچمارک هدفمند از رابط کاربری
+هدفی برای اجرا پیدا نمی‌کند.
 
 **`patch-tls-detect.sh` باید پیش از دو اسکریپت بعدی بیاید.** `config.js`
 وضعیت TLS را از `CORE_PEER_TLS_ENABLED` می‌خواند، و آن متغیر فقط در محیط
@@ -579,6 +599,7 @@ config/crypto-config/ordererOrganizations/example.com/msp/tlscacerts/ca-cert.pem
 را دستی بررسی کنید:
 
 ```bash
+cd /root/health-network
 find config/crypto-config/ordererOrganizations -path '*msp/tlscacerts/*.pem'
 ```
 
@@ -586,6 +607,7 @@ find config/crypto-config/ordererOrganizations -path '*msp/tlscacerts/*.pem'
 ### A10 — امنیت داشبورد
 
 ```bash
+cd /root/health-network/scripts
 ./secure-dashboard.sh       # رمز را تایپ کنید، paste نکنید
 ./harden-docker-ports.sh
 systemctl restart dashboard
@@ -637,6 +659,7 @@ systemctl restart dashboard
 Raft بازسازی می‌خواهد، چون نوع سرویس ترتیب‌دهی در بلوک پیدایش است:
 
 ```bash
+cd /root/health-network/scripts
 ./setup-raft.sh 3
 ./deploy-staged.sh artifacts
 cd ../config && docker compose down && docker compose --profile raft up -d
@@ -682,6 +705,7 @@ done
 | `endorsement-majority.rego` | ۵ از ۸ | فرضی؛ در گزارش برچسب بخورد |
 
 ```bash
+cd /root/health-network/scripts
 ./fix-tape-policy.sh            # مطابق استقرار
 ./fix-tape-policy.sh majority   # فرضی
 ```
@@ -944,6 +968,7 @@ ls scripts/set-tls.sh scripts/setup-raft.sh       # هر دو
 ### اگر چیزی جا افتاده
 
 ```bash
+cd /root/health-network
 ./scripts/add-test-endpoint.sh
 ```
 

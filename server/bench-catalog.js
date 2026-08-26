@@ -192,6 +192,14 @@ function allTargets() {
         needsSeed: def.needsSeed,
         tapeSafe: def.tapeSafe,
         id: `${channel}/${contract}`,
+        // `writable` قرارداد نسخه 6G است. gen-caliper-assets.js
+        // با `if (!t.writable) continue` فیلتر می‌کند؛ بدون این
+        // میدان هیچ workload نام‌داری ساخته نمی‌شود و بنچمارک
+        // هدفمند از رابط کاربری کار نمی‌کند.
+        // اینجا هر هدف نوشتنی است — readOnly ها بالاتر فیلتر شده‌اند.
+        writable: true,
+        params: def.params,
+        caliperId: caliperId({ channel, contract }),
       });
     }
   }
@@ -241,6 +249,16 @@ function catalog() {
     tapeSafeTargets: tapeTargets().length,
     readOnly: READ_ONLY_CONTRACTS.length,
     byKind,
+    // `counts` قرارداد نسخه 6G است: add-test-endpoint.sh و هر
+    // مصرف‌کننده‌ای که از آنجا آمده باشد اینجا را می‌خواند. همان
+    // اعداد ریشه، فقط با شکل قدیمی — تا هیچ‌کدام نشکند.
+    counts: {
+      channels: Object.keys(CHANNEL_CHAINCODE_MAP).length,
+      contracts: Object.keys(CONTRACT_FN).length,
+      targets: targets.length,
+      tapeSafe: tapeTargets().length,
+      readOnly: READ_ONLY_CONTRACTS.length,
+    },
   };
 }
 

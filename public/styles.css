@@ -8,27 +8,57 @@
 @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Inter:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap');
 
 :root {
-  --field:    #0C1322;
-  --panel:    #141E33;
-  --panel-2:  #1B2740;
-  --line:     #24314F;
-  --line-soft:#1C2942;
-  --ink:      #E6EDFA;
-  --ink-dim:  #8A9AB8;
-  --ink-faint:#5C6C8C;
+  /* ═══ پالت شبکهٔ ملی سلامت ═══════════════════════════════
+     رنگ‌ها از دامنه می‌آیند نه از سلیقه، و هر کدام یک معنا دارد
+     که در کل رابط یکسان می‌ماند:
 
-  --trace:    #35D6C4;   /* macro transmitter / primary action */
-  --signal:   #F2A93B;   /* small-cell transmitter */
-  --rx:       #E36FA8;   /* receiver */
-  --ok:       #4FD08A;
-  --fail:     #F2596A;
+       vital    سبز-فیروزه‌ای — علائم حیاتی، مسیر سالم، کنش اصلی
+       triage   کهربایی — اولویت، هشدار، توجه لازم
+       critical مرجانی — سطح تریاژ ۱ و ۲، رد، خطر
+       care     بنفش ملایم — مرکز درمانی، ظرفیت
+       plasma   آبی روشن — داده، ممیزی، سوابق
+
+     زمینه عمداً کمی گرم‌تر از نسخهٔ 6G است. رابط بالینی ساعت‌ها
+     نگاه می‌شود؛ آبی سرد محض خسته‌کننده است. */
+
+  --field:    #0A1018;   /* زمینهٔ اصلی، کمی گرم */
+  --panel:    #111A26;
+  --panel-2:  #18232F;
+  --line:     #24333F;
+  --line-soft:#1B2833;
+  --ink:      #E8F0F5;
+  --ink-dim:  #8FA3B3;
+  --ink-faint:#5F7385;
+
+  --vital:    #34D399;   /* کنش اصلی، سالم، پذیرفته */
+  --triage:   #F5A524;   /* اولویت، هشدار */
+  --critical: #FB6E6E;   /* بحرانی، رد، خطا */
+  --care:     #A78BFA;   /* مرکز درمانی */
+  --plasma:   #38BDF8;   /* داده و ممیزی */
+  --ok:       #34D399;
+  --fail:     #FB6E6E;
+
+  /* نام‌های قدیمی 6G — تا هیچ قاعده‌ای که هنوز آنها را
+     می‌خواند بی‌صدا نشکند. به رنگ‌های جدید اشاره می‌کنند. */
+  --trace:    var(--vital);
+  --signal:   var(--triage);
+  --rx:       var(--care);
+
+  /* سطوح تریاژ — همان اعدادی که clinical.go می‌دهد.
+     یک منبع رنگ، هم برای نقشه هم برای جدول. */
+  --triage-1: #FB6E6E;
+  --triage-2: #F97F51;
+  --triage-3: #F5C242;
+  --triage-4: #6EE7B7;
+  --triage-5: #7D93A8;
 
   --font-display: 'Archivo', system-ui, -apple-system, sans-serif;
   --font-body:    'Inter', system-ui, -apple-system, sans-serif;
   --font-mono:    'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
 
-  --r: 10px;
+  --r: 12px;
   --pad: 22px;
+  --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px -12px rgba(0,0,0,.5);
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -38,8 +68,9 @@ html { scroll-behavior: smooth; }
 body {
   background: var(--field);
   background-image:
-    radial-gradient(1100px 620px at 78% -12%, rgba(53,214,196,.09), transparent 62%),
-    radial-gradient(760px 520px at 8% 108%, rgba(227,111,168,.07), transparent 60%);
+    radial-gradient(1100px 620px at 78% -12%, rgba(52,211,153,.08), transparent 62%),
+    radial-gradient(760px 520px at 8% 108%, rgba(167,139,250,.06), transparent 60%),
+    radial-gradient(520px 380px at 50% 45%, rgba(56,189,248,.03), transparent 70%);
   background-attachment: fixed;
   color: var(--ink);
   font-family: var(--font-body);
@@ -751,3 +782,258 @@ tr.rowlink:hover { background: var(--panel-2); }
 }
 .chart-wrap canvas { display: block; }
 @media (max-width: 640px) { .chart-wrap { height: 240px; } }
+
+/* ═══════════════════════════════════════════════════════════════
+   اجزای دامنهٔ سلامت
+
+   اینها را از اجزای عمومی جدا نگه داشتم چون معنایشان از دامنه
+   می‌آید: نشان تریاژ همیشه همان رنگی است که نقشه می‌کشد، و نوار
+   ظرفیت همان آستانه‌ای را قرمز می‌کند که EstimatedWaitSec در
+   clinical.go برایش انتظار طولانی حساب می‌کند (۸۰٪).
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── نشان سطح تریاژ ─────────────────────────────────────────
+   عدد سطح داخل دایره، رنگ از همان جدول clinical.go. سطح ۱ و ۲
+   حلقهٔ نبض دارند — نه برای زیبایی، برای اینکه در فهرست بلند
+   چشم اول آنجا برود. */
+.triage {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-family: var(--font-mono); font-size: 12px; font-weight: 600;
+  white-space: nowrap;
+}
+.triage .lvl {
+  display: grid; place-items: center;
+  width: 22px; height: 22px; border-radius: 50%;
+  font-size: 11px; color: #0A1018;
+  background: var(--triage-5);
+  position: relative;
+}
+.triage[data-level="1"] .lvl { background: var(--triage-1); }
+.triage[data-level="2"] .lvl { background: var(--triage-2); }
+.triage[data-level="3"] .lvl { background: var(--triage-3); }
+.triage[data-level="4"] .lvl { background: var(--triage-4); }
+.triage[data-level="5"] .lvl { background: var(--triage-5); }
+
+.triage[data-level="1"] .lvl::after,
+.triage[data-level="2"] .lvl::after {
+  content: ''; position: absolute; inset: -4px;
+  border-radius: 50%; border: 1.5px solid currentColor;
+  color: inherit; opacity: .5;
+  animation: pulse-ring 1.9s ease-out infinite;
+}
+.triage[data-level="1"] .lvl::after { border-color: var(--triage-1); }
+.triage[data-level="2"] .lvl::after { border-color: var(--triage-2); }
+
+@keyframes pulse-ring {
+  0%   { transform: scale(.9);  opacity: .55; }
+  70%  { transform: scale(1.5); opacity: 0; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+/* احترام به تنظیم سیستم — انیمیشن تزئینی است، اطلاعات نیست. */
+@media (prefers-reduced-motion: reduce) {
+  .triage .lvl::after { animation: none; opacity: .45; }
+}
+
+/* ── نمرهٔ NEWS2 ─────────────────────────────────────────────
+   باندهای RCP: ۰–۴ کم، ۵–۶ متوسط، ≥۷ زیاد. */
+.news2 {
+  display: inline-flex; align-items: baseline; gap: 5px;
+  font-family: var(--font-mono); font-size: 12px;
+  padding: 2px 9px; border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+}
+.news2 b { font-size: 13px; font-weight: 700; }
+.news2[data-band="0"] b { color: var(--vital); }
+.news2[data-band="1"] b { color: var(--triage-3); }
+.news2[data-band="2"] b { color: var(--triage); }
+.news2[data-band="3"] b { color: var(--critical); }
+
+/* ── کارت مرکز درمانی ───────────────────────────────────────
+   نوار بالایی رنگ سازمان است؛ نوار پایینی اشغال تخت. */
+.facility {
+  position: relative; overflow: hidden;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 16px 18px 20px;
+  box-shadow: var(--shadow);
+  transition: border-color .18s ease, transform .18s ease;
+}
+.facility:hover { border-color: var(--care); transform: translateY(-1px); }
+.facility::before {
+  content: ''; position: absolute; inset: 0 0 auto 0; height: 3px;
+  background: linear-gradient(90deg, var(--care), var(--plasma));
+}
+.facility h4 {
+  font-family: var(--font-display); font-size: 15px;
+  margin-bottom: 3px; color: var(--ink);
+}
+.facility .kind { font-size: 12px; color: var(--ink-dim); margin-bottom: 12px; }
+
+.caps { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 14px; }
+.cap {
+  font-size: 10.5px; font-family: var(--font-mono);
+  padding: 2px 7px; border-radius: 4px;
+  background: rgba(167,139,250,.11);
+  border: 1px solid rgba(167,139,250,.24);
+  color: var(--care);
+}
+
+/* نوار ظرفیت. آستانهٔ ۸۰٪ همان است که در clinical.go انتظار صف
+   را غیرصفر می‌کند — رنگ باید همان‌جا عوض شود که مدل عوض می‌شود. */
+.beds { display: flex; align-items: center; gap: 10px; }
+.beds-bar {
+  flex: 1; height: 6px; border-radius: 3px;
+  background: var(--line-soft); overflow: hidden;
+}
+.beds-fill {
+  height: 100%; border-radius: 3px;
+  background: var(--vital);
+  transition: width .4s cubic-bezier(.4,0,.2,1), background-color .3s ease;
+}
+.beds-fill[data-load="busy"] { background: var(--triage); }
+.beds-fill[data-load="full"] { background: var(--critical); }
+.beds-num {
+  font-family: var(--font-mono); font-size: 11.5px;
+  color: var(--ink-dim); white-space: nowrap;
+}
+
+/* ── نتیجهٔ ارجاع ───────────────────────────────────────────
+   رد دامنه‌ای و خطای سامانه **دو چیز متفاوت‌اند** و نباید یک
+   رنگ داشته باشند — این تمایز کل تفسیر بنچمارک است. */
+.outcome {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; padding: 3px 10px; border-radius: 999px;
+  border: 1px solid transparent;
+}
+.outcome::before {
+  content: ''; width: 6px; height: 6px; border-radius: 50%;
+  background: currentColor;
+}
+.outcome.admit {
+  color: var(--vital);
+  background: rgba(52,211,153,.10); border-color: rgba(52,211,153,.28);
+}
+/* رد مدل — کهربایی، نه قرمز. خروجی درست است نه خرابی. */
+.outcome.declined {
+  color: var(--triage);
+  background: rgba(245,165,36,.10); border-color: rgba(245,165,36,.28);
+}
+/* خطای سامانه — قرمز. اینجا واقعاً چیزی خراب است. */
+.outcome.error {
+  color: var(--critical);
+  background: rgba(251,110,110,.10); border-color: rgba(251,110,110,.28);
+}
+
+/* ── نشان نوع رفتاری قرارداد ────────────────────────────────
+   selector / guarded / ledger / market — همان چهار نوعی که
+   channel_contract_map.sh تعریف می‌کند. */
+.kindtag {
+  font-family: var(--font-mono); font-size: 10.5px;
+  letter-spacing: .04em; text-transform: uppercase;
+  padding: 2px 7px; border-radius: 4px;
+  border: 1px solid var(--line); color: var(--ink-dim);
+}
+.kindtag[data-kind="selector"] {
+  color: var(--vital); border-color: rgba(52,211,153,.35);
+  background: rgba(52,211,153,.08);
+}
+.kindtag[data-kind="guarded"] {
+  color: var(--triage); border-color: rgba(245,165,36,.35);
+  background: rgba(245,165,36,.08);
+}
+.kindtag[data-kind="ledger"] {
+  color: var(--plasma); border-color: rgba(56,189,248,.35);
+  background: rgba(56,189,248,.08);
+}
+.kindtag[data-kind="market"] {
+  color: var(--care); border-color: rgba(167,139,250,.35);
+  background: rgba(167,139,250,.08);
+}
+
+/* ── ردیف علائم حیاتی ───────────────────────────────────────
+   مقدار خارج از محدوده رنگ می‌گیرد، بقیه خنثی می‌مانند. */
+.vitals {
+  display: grid; gap: 1px;
+  grid-template-columns: repeat(auto-fit, minmax(74px, 1fr));
+  background: var(--line-soft);
+  border: 1px solid var(--line); border-radius: 8px;
+  overflow: hidden;
+}
+.vital-cell { background: var(--panel); padding: 9px 11px; }
+.vital-cell .lbl {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--ink-faint); margin-bottom: 2px;
+}
+.vital-cell .val {
+  font-family: var(--font-mono); font-size: 14px; color: var(--ink);
+}
+.vital-cell[data-flag="abnormal"] .val { color: var(--triage); }
+.vital-cell[data-flag="critical"] .val { color: var(--critical); font-weight: 600; }
+
+/* ── جداکنندهٔ بخش با برچسب ─────────────────────────────────── */
+.rule {
+  display: flex; align-items: center; gap: 14px;
+  margin: 30px 0 18px;
+  font-family: var(--font-mono); font-size: 11px;
+  text-transform: uppercase; letter-spacing: .09em;
+  color: var(--ink-faint);
+}
+.rule::after {
+  content: ''; flex: 1; height: 1px;
+  background: linear-gradient(90deg, var(--line), transparent);
+}
+
+/* ── مودال ──────────────────────────────────────────────────
+   با کلاس .active باز می‌شود — همان قراردادی که app.js دارد. */
+.modal {
+  position: fixed; inset: 0; z-index: 200;
+  display: none; place-items: center;
+  background: rgba(6,10,16,.74);
+  backdrop-filter: blur(6px);
+  padding: 24px;
+}
+.modal.active { display: grid; }
+.modal-box {
+  width: 100%; max-width: 440px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  box-shadow: 0 24px 64px -20px rgba(0,0,0,.7);
+  padding: 22px;
+  animation: modal-in .18s cubic-bezier(.4,0,.2,1);
+}
+.modal-box.wide { max-width: 720px; }
+@keyframes modal-in {
+  from { opacity: 0; transform: translateY(8px) scale(.985); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) { .modal-box { animation: none; } }
+
+.modal-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; margin-bottom: 10px;
+}
+.modal-head h3 { font-family: var(--font-display); font-size: 17px; }
+.modal-sub {
+  color: var(--ink-dim); font-size: 13px; line-height: 1.65;
+  margin-bottom: 18px;
+}
+.modal-sub code {
+  font-family: var(--font-mono); font-size: 12px;
+  color: var(--plasma); background: var(--field);
+  padding: 1px 6px; border-radius: 4px;
+}
+.field-label {
+  display: block; font-size: 11px; letter-spacing: .05em;
+  text-transform: uppercase; color: var(--ink-faint); margin-bottom: 6px;
+}
+.modal-foot {
+  display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;
+}
+.history-list {
+  max-height: 52vh; overflow-y: auto;
+  border: 1px solid var(--line); border-radius: 8px;
+  background: var(--field);
+}

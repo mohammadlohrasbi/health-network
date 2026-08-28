@@ -280,6 +280,14 @@ function catalog() {
       contracts: Object.keys(CONTRACT_FN).length,
       targets: targets.length,
       tapeSafe: tapeTargets().length,
+      // هر هدف نوشتنی است — readOnly ها در allTargets فیلتر شده‌اند.
+      writable: targets.length,
+      // نام 6G برای «نیازمند بذرکاری». gen-caliper-assets.js آن را
+      // در خلاصه چاپ می‌کند؛ بدونش «undefined» می‌نویسد.
+      antennaDep: targets.filter((t) => t.needsSeed).length,
+      needsSeed: targets.filter((t) => t.needsSeed).length,
+      selector: targetsByKind('selector').length,
+      ledger: targetsByKind('ledger').length,
       readOnly: READ_ONLY_CONTRACTS.length,
     },
   };

@@ -176,6 +176,30 @@ function buildMarketArgs(contract, i, keyPrefix) {
   return buildArgs(contract, i, keyPrefix);
 }
 
+
+/** channelEntries — شکلی که صفحهٔ بنچمارک برای ساخت dropdown
+ *  لازم دارد: آرایه‌ای از { channel, contracts: [...] }.
+ *  test-app.js روی این `forEach` و `find` می‌زند، پس عدد بودنش
+ *  صفحه را با «cat.channels.forEach is not a function» می‌خواباند. */
+function channelEntries() {
+  return Object.keys(CHANNEL_CHAINCODE_MAP).map((channel) => ({
+    channel,
+    contracts: allTargets()
+      .filter((t) => t.channel === channel)
+      .map((t) => ({
+        contract: t.contract,
+        fn: t.fn,
+        kind: t.kind,
+        params: t.params,
+        writable: t.writable,
+        needsSeed: t.needsSeed,
+        tapeSafe: t.tapeSafe,
+        caliperId: t.caliperId,
+        id: t.id,
+      })),
+  })).filter((c) => c.contracts.length);
+}
+
 /* ── اهداف ───────────────────────────────────────────────── */
 
 function allTargets() {
@@ -243,11 +267,10 @@ function catalog() {
     seed: BENCH_SEED,
     gridSizeM: GRID_SIZE_M,
     facilityCount: FACILITY_COUNT,
-    channels: Object.keys(CHANNEL_CHAINCODE_MAP).length,
-    contracts: Object.keys(CONTRACT_FN).length,
-    targets: targets.length,
-    tapeSafeTargets: tapeTargets().length,
-    readOnly: READ_ONLY_CONTRACTS.length,
+    // آرایه، نه عدد — رابط کاربری روی این forEach می‌زند.
+    // شمارنده‌ها در counts پایین‌اند.
+    channels: channelEntries(),
+    targets,
     byKind,
     // `counts` قرارداد نسخه 6G است: add-test-endpoint.sh و هر
     // مصرف‌کننده‌ای که از آنجا آمده باشد اینجا را می‌خواند. همان
@@ -297,6 +320,7 @@ module.exports = {
   resolveTargets,
   catalog,
   caliperId,
+  channelEntries,
   assertCatalogInSync,
   MARKET_FN,
   marketTargets,

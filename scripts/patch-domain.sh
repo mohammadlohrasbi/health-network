@@ -1441,6 +1441,86 @@ fi
 edit scripts/add-test-endpoint.sh \
   's#const n = c.catalog().counts;#const _c = c.catalog(); const n = _c.counts || _c;#'
 
+
+# ── ۲۹. دور بیست‌ودوم: شکل کامل catalog() برای رابط کاربری ──
+# 🔴 `cat.channels.forEach is not a function` در صفحهٔ بنچمارک.
+#
+# سومین ناهمخوانی شکل داده از همان کلاس (`counts`، `writable`، و
+# حالا این). رابط کاربری `catalog().channels` را **آرایه‌ای از
+# {channel, contracts[]}** انتظار دارد تا dropdown ها را بسازد؛
+# کاتالوگ من عدد برمی‌گرداند.
+#
+# `channels` نمی‌تواند هم عدد باشد هم آرایه. پس ریشه به آرایه
+# تبدیل می‌شود (شکلی که ابزارها می‌خواهند) و شمارنده‌ها فقط در
+# `counts` می‌مانند — که دور قبل اضافه شد و همین کار را می‌کند.
+log "دور بیست‌ودوم: شکل channels در catalog()"
+
+if [ "$DRY_RUN" != "1" ] && ! grep -q 'channelEntries' "$ROOT_DIR/server/bench-catalog.js"; then
+  mkdir -p "$BK/server"
+  cp "$ROOT_DIR/server/bench-catalog.js" "$BK/server/bench-catalog.shape.js"
+  node - "$ROOT_DIR" <<'NODEEOF'
+const fs = require('fs');
+const path = require('path');
+const p = path.join(process.argv[2], 'server', 'bench-catalog.js');
+let s = fs.readFileSync(p, 'utf8');
+
+const HELPER = `
+/** channelEntries — شکلی که صفحهٔ بنچمارک برای ساخت dropdown
+ *  لازم دارد: آرایه‌ای از { channel, contracts: [...] }.
+ *  test-app.js روی این \`forEach\` و \`find\` می‌زند، پس عدد بودنش
+ *  صفحه را با «cat.channels.forEach is not a function» می‌خواباند. */
+function channelEntries() {
+  return Object.keys(CHANNEL_CHAINCODE_MAP).map((channel) => ({
+    channel,
+    contracts: allTargets()
+      .filter((t) => t.channel === channel)
+      .map((t) => ({
+        contract: t.contract,
+        fn: t.fn,
+        kind: t.kind,
+        params: t.params,
+        writable: t.writable,
+        needsSeed: t.needsSeed,
+        tapeSafe: t.tapeSafe,
+        caliperId: t.caliperId,
+        id: t.id,
+      })),
+  })).filter((c) => c.contracts.length);
+}
+
+`;
+s = s.replace(/\/\* ── اهداف ─/, HELPER + '/* ── اهداف ─');
+
+// ریشه به آرایه، شمارنده‌ها فقط در counts
+s = s.replace(
+  /    channels: Object\.keys\(CHANNEL_CHAINCODE_MAP\)\.length,\n    contracts: Object\.keys\(CONTRACT_FN\)\.length,\n    targets: targets\.length,\n    tapeSafeTargets: tapeTargets\(\)\.length,\n    readOnly: READ_ONLY_CONTRACTS\.length,\n    byKind,/,
+  `    // آرایه، نه عدد — رابط کاربری روی این forEach می‌زند.
+    // شمارنده‌ها در counts پایین‌اند.
+    channels: channelEntries(),
+    targets,
+    byKind,`);
+
+s = s.replace(/  caliperId,\n  assertCatalogInSync,/,
+  '  caliperId,\n  channelEntries,\n  assertCatalogInSync,');
+
+fs.writeFileSync(p, s);
+console.log('  channels به آرایه تبدیل شد');
+NODEEOF
+  ( cd "$ROOT_DIR/server" && node -e '
+      const c = require("./bench-catalog").catalog();
+      if (!Array.isArray(c.channels)) { console.error("  ✗ channels آرایه نیست"); process.exit(1); }
+      if (!Array.isArray(c.targets))  { console.error("  ✗ targets آرایه نیست");  process.exit(1); }
+      const bad = c.channels.filter(x => !x.channel || !Array.isArray(x.contracts));
+      if (bad.length) { console.error("  ✗", bad.length, "ورودی ناقص"); process.exit(1); }
+      if (!c.counts || !c.counts.channels) { console.error("  ✗ counts ناقص"); process.exit(1); }' ) \
+    || { echo "  ✗ اعتبارسنجی شکل کاتالوگ شکست"; exit 1; }
+fi
+
+# test-app.js پیش‌فرض datachannel را انتخاب می‌کند — کانالی که در
+# دامنهٔ سلامت وجود ندارد، پس هیچ گزینه‌ای پیش‌فرض نمی‌شود.
+edit public/test-app.js \
+  "s#if (c.channel === 'datachannel') o.selected = true;#if (c.channel === 'admissionchannel') o.selected = true;#"
+
 # ── تأیید ───────────────────────────────────────────────
 if [ "$DRY_RUN" = "1" ]; then
   log "DRY_RUN — هیچ تغییری اعمال نشد"
@@ -1471,6 +1551,37 @@ check "coverage-map.js حذف شده" \
 # سبز باشد، «برخی بررسی‌ها ناموفق» در پایان راه‌اندازی نمی‌آید.
 # 🔴 بدون `writable`، صفر workload نام‌دار ساخته می‌شود و بنچمارک
 # هدفمند از رابط کاربری کار نمی‌کند — با یک خط بی‌آزار در log.
+# 🔴 هر میدانی که رابط کاربری می‌خواند باید شکل درست داشته باشد.
+# سه بار همین کلاس شکست: counts، writable، channels.
+# رابط کاربری هم مثل کد باید یکپارچه بماند: هر شناسه‌ای که یک
+# اسکریپت صدا می‌زند باید در HTML باشد. پنج شناسهٔ مودال از
+# نسخهٔ 6G غایب بودند و «انتقال» و «تاریخچه» بی‌صدا کار نمی‌کردند.
+check "شناسه‌های HTML با اسکریپت‌های صفحه می‌خوانند" \
+      "cd '$ROOT_DIR/public' && python3 -c \"
+import re,sys
+bad=[]
+for h in ['index.html','dashboard.html','explorer.html','test.html','scenario.html']:
+    s=open(h,encoding='utf-8').read()
+    ids=set(re.findall(r'id=.([\\w-]+).',s))
+    for js in re.findall(r'src=.([\\w.-]+\\.js).',s):
+        try: j=open(js,encoding='utf-8').read()
+        except OSError: bad.append(h+' -> '+js+' missing'); continue
+        used={a or b for a,b in re.findall(r'[\\\$]\\([\'\\\"](\\w+)[\'\\\"]\\)|getElementById\\([\'\\\"](\\w+)[\'\\\"]\\)', j)}
+        m=sorted(used-ids)
+        if m: bad.append(h+' <- '+js+': '+','.join(m))
+for b in bad: print(b)
+sys.exit(1 if bad else 0)
+\""
+check "شکل catalog() با انتظار رابط کاربری می‌خواند" \
+      "cd '$ROOT_DIR/server' && node -e '
+        const c = require(\"./bench-catalog\").catalog();
+        const fail = m => { console.error(m); process.exit(1); };
+        if (!Array.isArray(c.channels)) fail(\"channels آرایه نیست\");
+        if (!Array.isArray(c.targets)) fail(\"targets آرایه نیست\");
+        if (c.channels.some(x => !x.channel || !Array.isArray(x.contracts)))
+          fail(\"ورودی کانال ناقص\");
+        if (!c.counts || !c.counts.channels || !c.counts.targets)
+          fail(\"counts ناقص\");'"
 check "allTargets میدان‌هایی که Caliper لازم دارد را می‌دهد" \
       "cd '$ROOT_DIR/server' && node -e '
         const t=require(\"./bench-catalog\").allTargets();

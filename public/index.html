@@ -3,37 +3,39 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>6G Fabric Console</title>
+<title>نمای کلی — شبکهٔ ملی سلامت</title>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
 <header class="topbar">
-  <a class="wordmark" href="index.html"><span class="glyph">⬡</span> 6G Fabric <span class="sub">Console</span></a>
+  <a class="wordmark" href="index.html"><span class="glyph">✚</span> شبکهٔ ملی سلامت <span class="sub">کنسول</span></a>
   <nav class="nav">
-    <a href="index.html" aria-current="page">Overview</a>
-    <a href="dashboard.html">Ledger</a>
-    <a href="explorer.html">Explorer</a>
-    <a href="test.html">Benchmark</a>
-    <a href="scenario.html">Simulation</a>
+    <a href="index.html" aria-current="page">نمای کلی</a>
+    <a href="dashboard.html">دفتر</a>
+    <a href="explorer.html">کاوشگر</a>
+    <a href="test.html">بنچمارک</a>
+    <a href="scenario.html">شبیه‌سازی</a>
   </nav>
-  <div class="health"><span class="dot" id="healthDot"></span><span id="healthText">Checking</span></div>
+  <div class="health"><span class="dot" id="healthDot"></span><span id="healthText">در حال بررسی</span></div>
 </header>
 
 <main class="shell">
 
   <section class="hero">
     <div>
-      <div class="eyebrow">Permissioned ledger for cellular infrastructure</div>
-      <h1>Eight operators.<br>One <em>shared record</em><br>of the air interface.</h1>
-      <p>هر سازمان یک دامنه اعتماد روی شبکه Hyperledger Fabric است. ارجاع بیمار،
-         device attachments and signal measurements are written to channels that all operators can
-         verify but none can rewrite.</p>
+      <div class="eyebrow">دفتر کل مجوزدار برای زیرساخت سلامت</div>
+      <h1>هشت دامنهٔ اعتماد.<br>یک <em>سابقهٔ مشترک</em><br>از مسیر درمان.</h1>
+      <p>وزارت بهداشت، بیمه، غذا و دارو، آمار سلامت، اورژانس، بیمارستان دولتی،
+         بیمارستان خصوصی و آزمایشگاه — هر کدام یک دامنهٔ اعتماد روی
+         Hyperledger Fabric. تریاژ، ارجاع، تجویز دارو و انتقال خون روی
+         کانال‌هایی نوشته می‌شوند که همه می‌توانند راستی‌آزمایی کنند و
+         هیچ‌کس نمی‌تواند بازنویسی کند.</p>
       <div class="hero-stats">
-        <div class="hero-stat"><div class="n" id="statOrgs">—</div><div class="l">Organizations</div></div>
-        <div class="hero-stat"><div class="n" id="statChannels">—</div><div class="l">Channels</div></div>
-        <div class="hero-stat"><div class="n">86</div><div class="l">Smart contracts</div></div>
-        <div class="hero-stat"><div class="n">10 × 10</div><div class="l">km deployment</div></div>
+        <div class="hero-stat"><div class="n" id="statOrgs">—</div><div class="l">دامنهٔ اعتماد</div></div>
+        <div class="hero-stat"><div class="n" id="statChannels">—</div><div class="l">کانال</div></div>
+        <div class="hero-stat"><div class="n" id="statContracts">۱۱۰</div><div class="l">قرارداد هوشمند</div></div>
+        <div class="hero-stat"><div class="n">۳۰ × ۳۰</div><div class="l">کیلومتر پوشش</div></div>
       </div>
     </div>
 
@@ -41,58 +43,91 @@
       <canvas></canvas>
       <svg xmlns="http://www.w3.org/2000/svg"></svg>
       <div class="empty-state" id="heroEmpty">
-        <div style="font-size:26px;opacity:.5">⬡</div>
-        <div>No deployment on record yet.<br>Run a simulation to place the network.</div>
-        <a class="btn small" href="scenario.html">Open Simulation</a>
+        <div style="font-size:26px;opacity:.5">✚</div>
+        <div>هنوز چیدمانی ثبت نشده.<br>یک شبیه‌سازی اجرا کنید تا مراکز روی نقشه بنشینند.</div>
+        <a class="btn small" href="scenario.html">باز کردن شبیه‌سازی</a>
       </div>
     </div>
   </section>
 
-  <div class="eyebrow">Workspaces</div>
+  <div class="rule">آزمایش شاهدِ این معماری</div>
+
+  <div class="panel">
+    <p style="color:var(--ink-dim);margin-bottom:18px">
+      دو کانال با <strong style="color:var(--ink)">تنها یک متغیر</strong>:
+      کاری که chaincode انجام می‌دهد. همان شبکه، همان خوشهٔ Raft، همان
+      سیاست تأیید، همان بذر. اختلاف گذردهی این دو، هزینهٔ پیچیدگی
+      chaincode است.
+    </p>
+    <div class="cards" style="margin:0">
+      <div class="card" style="--accent:var(--vital);cursor:default">
+        <div class="idx"><span class="kindtag" data-kind="selector">selector</span></div>
+        <h3>admissionchannel</h3>
+        <p>هر تراکنش ۱۳ پارامتر می‌گیرد، نمرهٔ NEWS2 را حساب می‌کند، فاصله و
+           زمان سفر تا هر ۱۲ مرکز را می‌سنجد، توانمندی لازم را تطبیق می‌دهد و
+           <strong style="color:var(--triage)">می‌تواند رد کند</strong>.</p>
+        <div class="go" style="color:var(--vital)">۷ قرارداد</div>
+      </div>
+      <div class="card" style="--accent:var(--plasma);cursor:default">
+        <div class="idx"><span class="kindtag" data-kind="ledger">ledger</span></div>
+        <h3>auditchannel</h3>
+        <p>هر تراکنش سه پارامتر می‌گیرد و یک <code>PutState</code> می‌زند. بدون
+           هیچ شرطی، بدون هیچ خواندنی.
+           <strong style="color:var(--vital)">هرگز رد نمی‌کند</strong> — خط پایهٔ تمیز.</p>
+        <div class="go" style="color:var(--plasma)">۷ قرارداد</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="rule">فضاهای کاری</div>
   <div class="cards">
 
-    <a class="card" href="dashboard.html" style="--accent:var(--trace)">
-      <div class="idx">Ledger</div>
-      <h3>Browse the chain</h3>
-      <p>Pick an organization and a channel, then read the records its peers hold —
-         device attachments, bandwidth grants and signal readings, straight from world state.</p>
-      <div class="go">Open →</div>
+    <a class="card" href="dashboard.html" style="--accent:var(--vital)">
+      <div class="idx">دفتر</div>
+      <h3>مرور زنجیره</h3>
+      <p>یک سازمان و یک کانال انتخاب کنید و رکوردهایی را که peer هایش نگه
+         داشته‌اند بخوانید — پذیرش بیمار، تخصیص تخت، تجویز دارو و مجوز
+         انتقال خون، مستقیم از world state.</p>
+      <div class="go">باز کردن ←</div>
     </a>
 
-    <a class="card" href="explorer.html" style="--accent:var(--ok)">
-      <div class="idx">Explorer</div>
-      <h3>Walk the blocks</h3>
-      <p>Open any channel and read its chain block by block — who signed each transaction,
-         which contract it called, and whether the commit was accepted or rejected.</p>
-      <div class="go">Open →</div>
+    <a class="card" href="explorer.html" style="--accent:var(--plasma)">
+      <div class="idx">کاوشگر</div>
+      <h3>قدم زدن در بلاک‌ها</h3>
+      <p>هر کانالی را باز کنید و زنجیره‌اش را بلاک به بلاک بخوانید — چه کسی
+         هر تراکنش را امضا کرده، کدام قرارداد را صدا زده، و commit پذیرفته
+         شده یا رد.</p>
+      <div class="go">باز کردن ←</div>
     </a>
 
-    <a class="card" href="test.html" style="--accent:var(--signal)">
-      <div class="idx">Benchmark</div>
-      <h3>Measure throughput</h3>
-      <p>Drive load through Caliper or Tape and read back transactions per second,
-         end-to-end latency and the share of transactions that committed.</p>
-      <div class="go">Open →</div>
+    <a class="card" href="test.html" style="--accent:var(--triage)">
+      <div class="idx">بنچمارک</div>
+      <h3>سنجش گذردهی</h3>
+      <p>با Tape یا Caliper بار بدهید و تراکنش بر ثانیه، تأخیر انتها به انتها
+         و سهم تراکنش‌های کامیت‌شده را بخوانید. نرخ رد دامنه‌ای جدا از نرخ
+         خطا گزارش می‌شود.</p>
+      <div class="go">باز کردن ←</div>
     </a>
 
-    <a class="card" href="scenario.html" style="--accent:var(--rx)">
-      <div class="idx">Simulation</div>
-      <h3>Place the network</h3>
-      <p>Scatter macro cells, small cells and users across ten square kilometres,
-         هر بیمار را به سریع‌ترین مرکز واجد شرایط ارجاع می‌دهد و نتیجه را روی زنجیره ثبت می‌کند.</p>
-      <div class="go">Open →</div>
+    <a class="card" href="scenario.html" style="--accent:var(--care)">
+      <div class="idx">شبیه‌سازی</div>
+      <h3>چیدن شبکه</h3>
+      <p>مراکز درمانی و بیماران را روی شبکهٔ ۳۰ کیلومتری بپاشید، هر بیمار را
+         تریاژ کنید و به سریع‌ترین مرکز واجد شرایط ارجاع دهید — سپس نتیجه را
+         روی زنجیره ثبت کنید.</p>
+      <div class="go">باز کردن ←</div>
     </a>
 
   </div>
 
   <div class="panel" style="margin-top:26px">
-    <div class="panel-title">Last deployment <span class="tag" id="lastTag">none</span></div>
+    <div class="panel-title">آخرین چیدمان <span class="tag" id="lastTag">هیچ</span></div>
     <div class="readouts" style="margin-bottom:0">
-      <div class="readout accent-trace"><div class="k">Macro TX</div><div class="v" id="sumMacro">—</div></div>
-      <div class="readout accent-signal"><div class="k">Small-cell TX</div><div class="v" id="sumIot">—</div></div>
-      <div class="readout accent-rx"><div class="k">Receivers</div><div class="v" id="sumUsers">—</div></div>
-      <div class="readout accent-ok"><div class="k">Committed</div><div class="v" id="sumOk">—</div></div>
-      <div class="readout"><div class="k">Throughput</div><div class="v" id="sumTps">—<span class="u">tps</span></div></div>
+      <div class="readout accent-rx"><div class="k">مراکز درمانی</div><div class="v" id="sumFacility">—</div></div>
+      <div class="readout accent-signal"><div class="k">بیماران</div><div class="v" id="sumIot">—</div></div>
+      <div class="readout accent-trace"><div class="k">ارجاع پذیرفته</div><div class="v" id="sumUsers">—</div></div>
+      <div class="readout accent-ok"><div class="k">کامیت‌شده</div><div class="v" id="sumOk">—</div></div>
+      <div class="readout"><div class="k">گذردهی</div><div class="v" id="sumTps">—<span class="u">tps</span></div></div>
     </div>
   </div>
 

@@ -3,31 +3,31 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Ledger · 6G Fabric Console</title>
+  <title>دفتر — شبکهٔ ملی سلامت</title>
   <link rel="stylesheet" href="styles.css" />
   <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
 </head>
 <body>
 <header class="topbar">
-  <a class="wordmark" href="index.html"><span class="glyph">⬡</span> 6G Fabric <span class="sub">Console</span></a>
+  <a class="wordmark" href="index.html"><span class="glyph">✚</span> شبکهٔ ملی سلامت <span class="sub">کنسول</span></a>
   <nav class="nav">
-    <a href="index.html">Overview</a>
-    <a href="dashboard.html" aria-current="page">Ledger</a>
-    <a href="explorer.html">Explorer</a>
-    <a href="test.html">Benchmark</a>
-    <a href="scenario.html">Simulation</a>
+    <a href="index.html">نمای کلی</a>
+    <a href="dashboard.html" aria-current="page">دفتر</a>
+    <a href="explorer.html">کاوشگر</a>
+    <a href="test.html">بنچمارک</a>
+    <a href="scenario.html">شبیه‌سازی</a>
   </nav>
-  <div class="health"><span class="dot" id="healthDot"></span><span id="healthText">Checking</span></div>
+  <div class="health"><span class="dot" id="healthDot"></span><span id="healthText">در حال بررسی</span></div>
 </header>
 
   <main class="layout">
     <aside class="sidebar">
       <div class="field">
-        <label for="orgSelect">Organization</label>
+        <label for="orgSelect">سازمان</label>
         <select id="orgSelect"></select>
       </div>
       <div class="field">
-        <label for="channelSelect">Channel</label>
+        <label for="channelSelect">کانال</label>
         <select id="channelSelect"></select>
       </div>
       <button class="btn primary" id="loadBtn">Load Assets</button>
@@ -55,7 +55,7 @@
             <tr>
               <th>ID</th>
               <th>Record</th>
-              <th>Timestamp</th>
+              <th>زمان</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -74,6 +74,46 @@
     </section>
   </main>
 
+<!-- ═══ مودال‌ها ═══════════════════════════════════════════════
+     app.js این‌ها را صدا می‌زند ولی در نسخهٔ به‌ارث‌رسیده از 6G
+     هرگز در HTML نبودند — یعنی «انتقال» و «تاریخچه» بی‌صدا کار
+     نمی‌کردند (خطوط محافظت‌نشده روی null می‌افتادند). -->
+
+<div class="modal" id="transferModal" role="dialog" aria-modal="true" aria-labelledby="transferTitle">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3 id="transferTitle">انتقال مالکیت رکورد</h3>
+      <button class="btn ghost small" id="cancelTransferBtn" aria-label="بستن">✕</button>
+    </div>
+    <p class="modal-sub">
+      رکورد <code id="transferAssetId">—</code> به سازمان دیگری منتقل می‌شود.
+      این یک تراکنش روی زنجیره است و برگشت‌ناپذیر — رکورد قبلی پاک نمی‌شود،
+      یک نسخهٔ جدید روی آن نوشته می‌شود.
+    </p>
+    <label class="field-label" for="transferTo">سازمان مقصد</label>
+    <select id="transferTo"></select>
+    <div class="modal-foot">
+      <button class="btn ghost" id="cancelTransferBtn2">انصراف</button>
+      <button class="btn" id="confirmTransferBtn">انتقال</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="historyModal" role="dialog" aria-modal="true" aria-labelledby="historyTitle">
+  <div class="modal-box wide">
+    <div class="modal-head">
+      <h3 id="historyTitle">تاریخچهٔ رکورد</h3>
+      <button class="btn ghost small" id="closeHistoryBtn" aria-label="بستن">✕</button>
+    </div>
+    <p class="modal-sub">
+      هر نسخه‌ای که این کلید در دفتر داشته، با شناسهٔ تراکنش و زمانش.
+      دفتر فابریک غیرقابل حذف است، پس این فهرست کامل است.
+    </p>
+    <div class="history-list" id="historyList"></div>
+  </div>
+</div>
+
+
   <!-- Create / Edit Modal -->
   <div class="modal-overlay" id="modalOverlay">
     <div class="modal">
@@ -88,7 +128,7 @@
           <input type="text" id="fieldOwner" placeholder="optional" />
         </div>
         <div class="field">
-          <label for="fieldValue">Value</label>
+          <label for="fieldValue">مقدار</label>
           <input type="number" id="fieldValue" placeholder="optional" />
         </div>
         <div class="field">

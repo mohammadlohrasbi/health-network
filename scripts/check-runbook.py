@@ -188,6 +188,39 @@ def check_tape_sample(root):
     return problems
 
 
+def check_patch_first(root):
+    """هر بلوکی که ابزارهای لایهٔ دامنه را اجرا می‌کند باید اول
+    `patch-domain.sh` را بزند.
+
+    این از یک الگوی تکراری آمد: کاربر بلوک A9 را کپی می‌کرد، و چون
+    `patch-domain.sh` در آن نبود، ابزارها روی فایل‌های کهنهٔ مخزن
+    اجرا می‌شدند و خطاهایی نشان می‌دادند که مدت‌ها پیش رفع شده
+    بودند. سه دور پیاپی همین اتفاق افتاد.
+
+    فقط بلوک‌هایی سنجیده می‌شوند که چند ابزار دامنه را پشت هم
+    می‌زنند — نه بلوک‌های تک‌دستوری تشخیصی.
+    """
+    domain_tools = ('fix-tape-policy.sh', 'fix-tape-tls.sh',
+                    'gen-caliper-assets.js', 'add-test-endpoint.sh',
+                    'install-test-tools.sh')
+    path = os.path.join(root, 'RUNBOOK.md')
+    with open(path, encoding='utf-8') as handle:
+        text = handle.read()
+
+    problems = []
+    for i, block in enumerate(blocks(text)):
+        lines = code_lines(block)
+        hits = [t for t in domain_tools if any(t in l for l in lines)]
+        # فقط بلوک‌های چندابزاره — یک دستور تنها معمولاً تشخیصی است
+        if len(hits) < 2:
+            continue
+        if not any('patch-domain.sh' in l for l in lines):
+            problems.append(
+                f'بلوک {i}: {len(hits)} ابزار دامنه را اجرا می‌کند '
+                'ولی patch-domain.sh را نمی‌زند')
+    return problems
+
+
 def main():
     root = sys.argv[1] if len(sys.argv) > 1 else os.getcwd()
     path = os.path.join(root, 'RUNBOOK.md')
@@ -201,7 +234,8 @@ def main():
     problems = (check_paths(text, root)
                 + check_names(text, root)
                 + check_legacy_channels(root)
-                + check_tape_sample(root))
+                + check_tape_sample(root)
+                + check_patch_first(root))
     if problems:
         for line in problems:
             print('  ✗ ' + line, file=sys.stderr)

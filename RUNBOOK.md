@@ -543,6 +543,7 @@ ageYears`. این بیمار سپسیس شدید دارد (`flags=8` یعنی ت
 
 ```bash
 cd /root/health-network
+bash scripts/patch-domain.sh             # ← اول این
 node scripts/gen-hospital-contracts.js   # نگاشت توابع و مانیفست امضاها
 bash server/patch-index.sh
 systemctl restart dashboard
@@ -557,9 +558,22 @@ node gen-caliper-network.js    # با TLS به grpcs:// می‌رود
 ./add-test-endpoint.sh         # همه باید ✓ باشند
 ```
 
-⚠️ `gen-caliper-assets.js` را جا نیندازید — همان است که ۱۰۹ workload
-نام‌دار Caliper را می‌سازد. بدون آن، بنچمارک هدفمند از رابط کاربری
-هدفی برای اجرا پیدا نمی‌کند.
+⚠️ **`patch-domain.sh` خط اول است و جا انداختنش پرهزینه‌ترین
+اشتباه این سند است.** اصلاحات لایهٔ دامنه — نام کانال‌ها، شکل
+کاتالوگ، پیام‌های راهنما — همه از آنجا می‌آیند. اگر آن را نزنید،
+بقیهٔ بلوک روی فایل‌های کهنه اجرا می‌شود و خطاهایی می‌بینید که
+مدت‌ها پیش رفع شده‌اند.
+
+⚠️ `gen-caliper-assets.js` را هم جا نیندازید — همان است که ۱۰۹
+workload نام‌دار Caliper را می‌سازد. بدون آن، بنچمارک هدفمند از رابط
+کاربری هدفی برای اجرا پیدا نمی‌کند.
+
+پس از اجرای بلوک، این را بزنید تا مطمئن شوید همه‌چیز همگام است:
+
+```bash
+cd /root/health-network
+python3 scripts/check-runbook.py .
+```
 
 **`patch-tls-detect.sh` باید پیش از دو اسکریپت بعدی بیاید.** `config.js`
 وضعیت TLS را از `CORE_PEER_TLS_ENABLED` می‌خواند، و آن متغیر فقط در محیط

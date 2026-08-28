@@ -99,10 +99,19 @@ else
     echo -e "${GREEN}✓${NC} ${PATCHED} کانفیگ به سیاست ${MODE} بازنشانی شد"
 fi
 
+# ── SAMPLE محاسبهٔ یکجا ──
+# اولین کانفیگ موجود، برای نمونهٔ پایانی و شمارش endorser. یک بار
+# و مستقل از حالت سیاست — نسخهٔ قبلی آن را داخل شاخهٔ majority
+# تعریف می‌کرد، پس در حالت پیش‌فرض بلوک نمونه خالی چاپ می‌شد.
+SAMPLE=""
+for _f in "${TAPE_DIR}"/config-*.yaml; do
+    [ -f "$_f" ] && { SAMPLE="$_f"; break; }
+done
+SAMPLE_CH="$(basename "${SAMPLE:-config-none.yaml}" .yaml | sed 's/^config-//')"
+
 # ── ۳) هشدار دربارهٔ تعداد endorser ──
 # سیاست majority با کمتر از ۵ endorser هرگز برآورده نمی‌شود.
 if [ "$MODE" = "majority" ]; then
-    SAMPLE="${TAPE_DIR}/config-datachannel.yaml"
     if [ -f "$SAMPLE" ]; then
         N=$(grep -c "addr: peer0" "$SAMPLE" || true)
         # یکی از تطابق‌ها مربوط به committer است
@@ -126,8 +135,8 @@ if [ -f "$INDEX" ] && grep -q "majority.rego" "$INDEX"; then
 fi
 
 echo ""
-echo "نمونه (datachannel):"
-grep -E "^policyFile:|^channel:|^chaincode:" "${TAPE_DIR}/config-datachannel.yaml" 2>/dev/null || true
+echo "نمونه ($SAMPLE_CH):"
+[ -n "${SAMPLE:-}" ] && grep -E "^policyFile:|^channel:|^chaincode:" "$SAMPLE" 2>/dev/null || true
 echo ""
-echo "اجرای تست:  $ROOT_DIR/test-tools/run-tape.sh datachannel"
+echo "اجرای تست:  $ROOT_DIR/test-tools/run-tape.sh $SAMPLE_CH"
 echo "یا از رابط وب: صفحهٔ Benchmark ← تب Tape (سیاست از همان‌جا انتخاب می‌شود)"

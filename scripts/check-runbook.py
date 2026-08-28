@@ -106,6 +106,35 @@ def check_names(text, root):
     return problems
 
 
+def check_legacy_channels(root):
+    """هیچ اسکریپتی نباید نام کانال 6G را در پیام یا دستور راهنما
+    داشته باشد. سه بار همین اتفاق افتاد: `fix-tape-policy.sh` دستور
+    اجرایی روی `datachannel` می‌داد، `network.sh` آن را به عنوان
+    «اولین کانال» پیشنهاد می‌کرد، و `patch-tls-detect.sh` فایلی
+    نام می‌برد که ساخته نمی‌شود.
+
+    مستثنا فقط جایی است که **عمداً** دربارهٔ آن نام‌ها حرف می‌زند:
+    جدول ترجمهٔ LEGACY_CHANNEL، اسکریپت پچ، و کامنت bootstrap.
+    """
+    legacy = ('datachannel', 'iotchannel', 'networkchannel',
+              'resourcechannel', 'performancechannel', 'securitychannel')
+    skip = ('patch-domain.sh', 'channel_contract_map.sh', 'bootstrap-secure.sh')
+    problems = []
+    scripts = os.path.join(root, 'scripts')
+    if not os.path.isdir(scripts):
+        return problems
+    for name in sorted(os.listdir(scripts)):
+        if not name.endswith('.sh') or name in skip:
+            continue
+        with open(os.path.join(scripts, name), encoding='utf-8',
+                  errors='replace') as handle:
+            body = handle.read()
+        hits = sorted({c for c in legacy if c in body})
+        if hits:
+            problems.append(f'{name}: نام کانال 6G — {", ".join(hits)}')
+    return problems
+
+
 def main():
     root = sys.argv[1] if len(sys.argv) > 1 else os.getcwd()
     path = os.path.join(root, 'RUNBOOK.md')
@@ -116,13 +145,16 @@ def main():
     with open(path, encoding='utf-8') as handle:
         text = handle.read()
 
-    problems = check_paths(text, root) + check_names(text, root)
+    problems = (check_paths(text, root)
+                + check_names(text, root)
+                + check_legacy_channels(root))
     if problems:
         for line in problems:
             print('  ✗ ' + line, file=sys.stderr)
         return 1
 
-    print(f'  ✓ RUNBOOK: {len(blocks(text))} بلوک bash، همه معتبر')
+    print(f'  ✓ RUNBOOK: {len(blocks(text))} بلوک bash، همه معتبر؛ '
+          'اسکریپت‌ها بدون نام کانال 6G')
     return 0
 
 

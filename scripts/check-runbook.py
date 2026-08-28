@@ -138,8 +138,8 @@ def check_legacy_channels(root):
 
 
 def check_tape_sample(root):
-    """بلوک نمونهٔ پایانی fix-tape-policy.sh باید واقعاً نام کانال
-    چاپ کند.
+    """بلوک نمونهٔ پایانی اسکریپت‌های Tape باید نام کانال واقعی را
+    چاپ کند، نه یک ثابت.
 
     یک بار `SAMPLE` داخل شاخهٔ `majority` تعریف شده بود و در بلوک
     پایانی خوانده می‌شد — در حالت پیش‌فرض `any` خالی بود، پس
@@ -149,32 +149,43 @@ def check_tape_sample(root):
     گشت متنی این را نمی‌گیرد؛ فقط اجرای واقعی. پس اسکریپت را در
     یک پوشهٔ موقت با کانفیگ ساختگی اجرا می‌کنیم.
     """
-    script = os.path.join(root, 'scripts', 'fix-tape-policy.sh')
-    if not os.path.exists(script):
-        return []
-
-    tmp = tempfile.mkdtemp()
-    try:
-        cfg = os.path.join(tmp, 'test-tools', 'tape-configs')
-        os.makedirs(cfg)
-        os.makedirs(os.path.join(tmp, 'scripts'))
-        shutil.copy(script, os.path.join(tmp, 'scripts'))
-        with open(os.path.join(cfg, 'config-admissionchannel.yaml'),
-                  'w', encoding='utf-8') as handle:
-            handle.write('channel: admissionchannel\nchaincode: X\n'
-                         'policyFile: /x.rego\n')
-        out = subprocess.run(
-            ['bash', 'fix-tape-policy.sh'],
-            cwd=os.path.join(tmp, 'scripts'),
-            env={**os.environ, 'ROOT_DIR': tmp},
-            capture_output=True, text=True, timeout=60).stdout
-        if 'نمونه (admissionchannel)' not in out:
-            return ['fix-tape-policy.sh: بلوک نمونه نام کانال را چاپ نمی‌کند']
-    except Exception as exc:                       # noqa: BLE001
-        return [f'fix-tape-policy.sh اجرا نشد: {exc}']
-    finally:
-        shutil.rmtree(tmp, ignore_errors=True)
-    return []
+    problems = []
+    # هر دو اسکریپت، نه فقط یکی. نسخهٔ اول فقط fix-tape-policy.sh
+    # را می‌سنجید و `fix-tape-tls.sh` با همان باگ رد شد.
+    for name in ('fix-tape-policy.sh', 'fix-tape-tls.sh'):
+        script = os.path.join(root, 'scripts', name)
+        if not os.path.exists(script):
+            continue
+        tmp = tempfile.mkdtemp()
+        try:
+            cfg = os.path.join(tmp, 'test-tools', 'tape-configs')
+            os.makedirs(cfg)
+            os.makedirs(os.path.join(tmp, 'scripts'))
+            os.makedirs(os.path.join(tmp, 'config'))
+            shutil.copy(script, os.path.join(tmp, 'scripts'))
+            with open(os.path.join(tmp, 'config', '.env'),
+                      'w', encoding='utf-8') as handle:
+                handle.write('NETWORK_TLS=false\n')
+            with open(os.path.join(cfg, 'config-admissionchannel.yaml'),
+                      'w', encoding='utf-8') as handle:
+                handle.write('channel: admissionchannel\nchaincode: X\n'
+                             'policyFile: /x.rego\ntls_ca_cert: ""\n')
+            out = subprocess.run(
+                ['bash', name],
+                cwd=os.path.join(tmp, 'scripts'),
+                env={**os.environ, 'ROOT_DIR': tmp},
+                capture_output=True, text=True, timeout=60).stdout
+            # هیچ خروجی‌ای نباید کانال 6G را پیشنهاد کند، و دستور
+            # اجرایی باید روی کانالی باشد که واقعاً کانفیگ دارد.
+            if 'datachannel' in out:
+                problems.append(f'{name}: خروجی هنوز datachannel را پیشنهاد می‌کند')
+            elif 'admissionchannel' not in out:
+                problems.append(f'{name}: خروجی نام کانال واقعی را چاپ نمی‌کند')
+        except Exception as exc:                   # noqa: BLE001
+            problems.append(f'{name} اجرا نشد: {exc}')
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+    return problems
 
 
 def main():

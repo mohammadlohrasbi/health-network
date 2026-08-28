@@ -105,10 +105,10 @@ fi
 ok "$N کانفیگ به‌روز شد"
 
 # ── تأیید: هر مسیر ناخالی باید روی دیسک باشد ──
-SAMPLE="$TAPE_DIR/config-datachannel.yaml"
+SAMPLE="$(ls "$TAPE_DIR"/config-*.yaml 2>/dev/null | head -1)"
 if [ -f "$SAMPLE" ]; then
     echo ""
-    echo "نمونه (datachannel):"
+    echo "نمونه ($(basename "${SAMPLE:-–}" .yaml | sed "s/^config-//")):"
     grep "tls_ca_cert" "$SAMPLE" | sort -u | sed 's/^/  /'
     MISSING=0
     while IFS= read -r p; do
@@ -120,4 +120,4 @@ fi
 
 echo ""
 echo "────────────────────────────────────────────"
-echo "اجرای تست:  $ROOT_DIR/test-tools/run-tape.sh datachannel"
+echo "اجرای تست:  $ROOT_DIR/test-tools/run-tape.sh $(basename "${SAMPLE:-config-admissionchannel.yaml}" .yaml | sed "s/^config-//")"

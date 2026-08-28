@@ -41,7 +41,15 @@ edit() { # edit <file> <sed-expr...>
   fi
   mkdir -p "$BK/$(dirname "$rel")"
   cp "$f" "$BK/$rel"
-  for e in "$@"; do sed -i "$e" "$f"; done
+  # 🔴 sed با الگوی بد کد ۱ می‌دهد، ولی چون داخل تابع است و
+  # فراخوانی‌ها زنجیره نیستند، `set -e` آن را نمی‌گیرد و اسکریپت
+  # بی‌صدا نصفه می‌ماند (یک بار جداکنندهٔ # داخل خودِ متن بود).
+  for e in "$@"; do
+    sed -i "$e" "$f" || {
+      echo "  ✗ sed روی $rel شکست خورد: $e" >&2
+      return 1
+    }
+  done
 }
 
 # ── ۱. fabric.js — نگاشت عملیات دمو هر کانال ────────────
@@ -1521,6 +1529,84 @@ fi
 edit public/test-app.js \
   "s#if (c.channel === 'datachannel') o.selected = true;#if (c.channel === 'admissionchannel') o.selected = true;#"
 
+
+# ── ۳۰. دور بیست‌وسوم: counts کامل و نمونهٔ کانال Tape ──
+# 🔴 چهارمین و پنجمین میدان از همان کلاس ناهمخوانی شکل:
+#   `undefined writable, undefined به چیدمان ... نیاز دارند`
+# `gen-caliper-assets.js` از counts دو میدان دیگر می‌خواند که
+# کاتالوگ سلامت نمی‌داد. خروجی خراب بود ولی چون فقط یک خط
+# خلاصه است، هیچ‌چیز نشکست — همان الگوی خطای بی‌صدا.
+#
+# و `fix-tape-policy.sh` / `fix-tape-tls.sh` هنوز `datachannel`
+# را به‌عنوان نمونه چاپ می‌کنند و دستور اجرایی می‌دهند که روی
+# کانالی است که وجود ندارد.
+log "دور بیست‌وسوم: counts کامل و نمونهٔ کانال Tape"
+
+if [ "$DRY_RUN" != "1" ] && ! grep -q 'writable: targets.length' "$ROOT_DIR/server/bench-catalog.js"; then
+  mkdir -p "$BK/server"
+  cp "$ROOT_DIR/server/bench-catalog.js" "$BK/server/bench-catalog.counts.js"
+  node - "$ROOT_DIR" <<'NODEEOF'
+const fs = require('fs');
+const path = require('path');
+const p = path.join(process.argv[2], 'server', 'bench-catalog.js');
+let s = fs.readFileSync(p, 'utf8');
+const anchor = '      tapeSafe: tapeTargets().length,';
+if (!s.includes(anchor)) { console.error('  هشدار: بلوک counts پیدا نشد'); process.exit(0); }
+s = s.replace(anchor, `      tapeSafe: tapeTargets().length,
+      // هر هدف نوشتنی است — readOnly ها در allTargets فیلتر شده‌اند.
+      writable: targets.length,
+      // نام 6G برای «نیازمند بذرکاری». gen-caliper-assets.js آن را
+      // در خلاصه چاپ می‌کند؛ بدونش «undefined» می‌نویسد.
+      antennaDep: targets.filter((t) => t.needsSeed).length,
+      needsSeed: targets.filter((t) => t.needsSeed).length,
+      selector: targetsByKind('selector').length,
+      ledger: targetsByKind('ledger').length,`);
+fs.writeFileSync(p, s);
+console.log('  counts کامل شد');
+NODEEOF
+  ( cd "$ROOT_DIR/server" && node -e '
+      const n = require("./bench-catalog").catalog().counts;
+      for (const k of ["channels","contracts","targets","writable","antennaDep","selector","ledger"])
+        if (n[k] === undefined) { console.error("  ✗ counts." + k + " غایب"); process.exit(1); }' ) \
+    || { echo "  ✗ اعتبارسنجی counts شکست"; exit 1; }
+fi
+
+# نمونهٔ کانال در اسکریپت‌های Tape — به‌جای نام ثابت، اولین کانالی
+# که واقعاً کانفیگ دارد انتخاب شود.
+edit scripts/fix-tape-policy.sh \
+  's#SAMPLE="\${TAPE_DIR}/config-datachannel.yaml"#SAMPLE="$(ls "${TAPE_DIR}"/config-*.yaml 2>/dev/null | head -1)"#' \
+  's#echo "نمونه (datachannel):"#echo "نمونه ($(basename "${SAMPLE:-–}" .yaml | sed "s/^config-//")):"#' \
+  's#grep -E "\^policyFile:|\^channel:|\^chaincode:" "\${TAPE_DIR}/config-datachannel.yaml" 2>/dev/null || true#[ -n "${SAMPLE:-}" ] \&\& grep -E "^policyFile:|^channel:|^chaincode:" "$SAMPLE" 2>/dev/null || true#' \
+  's#echo "اجرای تست:  \$ROOT_DIR/test-tools/run-tape.sh datachannel"#echo "اجرای تست:  $ROOT_DIR/test-tools/run-tape.sh admissionchannel"#'
+
+edit scripts/fix-tape-tls.sh \
+  's#SAMPLE="\$TAPE_DIR/config-datachannel.yaml"#SAMPLE="$(ls "$TAPE_DIR"/config-*.yaml 2>/dev/null | head -1)"#' \
+  's#echo "نمونه (datachannel):"#echo "نمونه ($(basename "${SAMPLE:-–}" .yaml | sed "s/^config-//")):"#' \
+  's#echo "اجرای تست:  \$ROOT_DIR/test-tools/run-tape.sh datachannel"#echo "اجرای تست:  $ROOT_DIR/test-tools/run-tape.sh admissionchannel"#'
+
+# پیام‌های راهنما در بقیهٔ اسکریپت‌ها. هیچ‌کدام اجرایی نیستند،
+# ولی دستوری که کاربر کپی می‌کند باید کار کند.
+edit scripts/deploy-staged.sh \
+  's#\./deploy-staged.sh channel datachannel#./deploy-staged.sh channel admissionchannel#'
+# ⚠️ جداکنندهٔ sed نباید در خود الگو باشد. این خط یک بار با
+# جداکنندهٔ # نوشته شد در حالی که متن هم # داشت — «unknown option
+# to `s`» و اسکریپت با کد ۰ خارج شد، پس بی‌صدا نصفه ماند.
+edit scripts/network.sh \
+  's|\./deploy-staged.sh channel datachannel|./deploy-staged.sh channel admissionchannel|'
+edit scripts/patch-tls-detect.sh \
+  's#config-datachannel.yaml#config-admissionchannel.yaml#'
+edit scripts/add-test-endpoint.sh \
+  "s#! -name 'datachannel-\*'#! -name 'sample-*'#"
+edit scripts/install-test-tools.sh \
+  's#^channel: datachannel\$#channel: admissionchannel#'
+
+# نمونه workload های 6G که install-test-tools می‌سازد و هیچ‌وقت
+# استفاده نمی‌شوند — 109 workload نام‌دار جایشان را گرفته‌اند.
+edit scripts/install-test-tools.sh \
+  's#datachannel-workload.js#sample-write-workload.js#g' \
+  's#datachannel-query-workload.js#sample-query-workload.js#g' \
+  's#datachannel-benchmark.yaml#sample-benchmark.yaml#g'
+
 # ── تأیید ───────────────────────────────────────────────
 if [ "$DRY_RUN" = "1" ]; then
   log "DRY_RUN — هیچ تغییری اعمال نشد"
@@ -1572,6 +1658,27 @@ for h in ['index.html','dashboard.html','explorer.html','test.html','scenario.ht
 for b in bad: print(b)
 sys.exit(1 if bad else 0)
 \""
+# 🔴 پنج میدان تا حالا از این کلاس جا افتاده: counts، writable،
+# channels، antennaDep، و شمارنده‌های نوع. این بررسی همهٔ
+# میدان‌هایی را که ابزارها می‌خوانند یکجا می‌سنجد.
+check "counts همهٔ میدان‌هایی که ابزارها می‌خوانند را دارد" \
+      "cd '$ROOT_DIR/server' && node -e '
+        const n = require(\"./bench-catalog\").catalog().counts;
+        const need = [\"channels\",\"contracts\",\"targets\",\"writable\",
+                      \"antennaDep\",\"needsSeed\",\"selector\",\"ledger\",\"tapeSafe\"];
+        const miss = need.filter(k => n[k] === undefined);
+        if (miss.length) { console.error(\"غایب:\", miss.join(\", \")); process.exit(1); }'"
+# 🔴 network.sh یک CHANNELS پیش‌فرض 6G داشت. در عمل
+# channel_contract_map.sh بازنویسی‌اش می‌کند، پس بی‌ضرر بود — ولی
+# «بی‌ضرر تا وقتی ترتیب source عوض نشود» همان چیزی است که در این
+# پروژه چند بار به باگ تبدیل شد. مقدار درست از منبع واحد می‌آید.
+# پرانتز در الگوی sed باید escape شود، وگرنه بی‌صدا تطبیق نمی‌یابد.
+edit scripts/network.sh \
+  's#^CHANNELS=(networkchannel resourcechannel)$#CHANNELS=(admissionchannel auditchannel)#'
+
+# نام کانال 6G در اسکریپت‌ها را check-runbook.py می‌سنجد —
+# همان‌جا که مسیرهای RUNBOOK بررسی می‌شوند. یک‌خطی bash برای
+# این کار سه لایه escape می‌خواست و بی‌صدا اسکریپت را می‌خواباند.
 check "شکل catalog() با انتظار رابط کاربری می‌خواند" \
       "cd '$ROOT_DIR/server' && node -e '
         const c = require(\"./bench-catalog\").catalog();

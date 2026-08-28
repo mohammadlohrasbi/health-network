@@ -1607,6 +1607,70 @@ edit scripts/install-test-tools.sh \
   's#datachannel-query-workload.js#sample-query-workload.js#g' \
   's#datachannel-benchmark.yaml#sample-benchmark.yaml#g'
 
+
+# ── ۳۱. دور بیست‌وچهارم: SAMPLE خارج از شرط majority ────
+# 🔴 باگ در اصلاح خودم: `SAMPLE` را جایگزین کردم ولی جایش را
+# ندیدم — داخل `if [ "$MODE" = "majority" ]` تعریف شده بود. در
+# حالت پیش‌فرض `any` هیچ‌وقت ست نمی‌شود، پس بلوک نمونه در پایان
+# **خالی** چاپ می‌شد:
+#
+#   نمونه (datachannel):
+#   (هیچ)
+#
+# با `set -u` هم نبود، چون `${SAMPLE:-}` نوشته بودم. یعنی خطای
+# بی‌صدا — دوباره.
+#
+# رفع: SAMPLE یک بار در بالا محاسبه شود، مستقل از حالت سیاست.
+log "دور بیست‌وچهارم: SAMPLE مستقل از حالت سیاست"
+
+if [ "$DRY_RUN" != "1" ] && ! grep -q 'SAMPLE محاسبهٔ یکجا' "$ROOT_DIR/scripts/fix-tape-policy.sh"; then
+  mkdir -p "$BK/scripts"
+  cp "$ROOT_DIR/scripts/fix-tape-policy.sh" "$BK/scripts/fix-tape-policy.sample.sh"
+  node - "$ROOT_DIR" <<'NODEEOF'
+const fs = require('fs');
+const path = require('path');
+const p = path.join(process.argv[2], 'scripts', 'fix-tape-policy.sh');
+let s = fs.readFileSync(p, 'utf8');
+
+// تعریف داخل شرط را بردار
+s = s.replace(
+  /    SAMPLE="\$\(ls "\$\{TAPE_DIR\}"\/config-\*\.yaml 2>\/dev\/null \| head -1\)"\n/,
+  '');
+
+// و یک بار بالا، پیش از بخش ۳، تعریف کن
+const anchor = '# ── ۳) هشدار دربارهٔ تعداد endorser ──';
+if (!s.includes(anchor)) { console.error('  هشدار: نقطهٔ اتصال پیدا نشد'); process.exit(0); }
+s = s.replace(anchor, `# ── SAMPLE محاسبهٔ یکجا ──
+# اولین کانفیگ موجود، برای نمونهٔ پایانی و شمارش endorser. یک بار
+# و مستقل از حالت سیاست — نسخهٔ قبلی آن را داخل شاخهٔ majority
+# تعریف می‌کرد، پس در حالت پیش‌فرض بلوک نمونه خالی چاپ می‌شد.
+SAMPLE=""
+for _f in "\${TAPE_DIR}"/config-*.yaml; do
+    [ -f "$_f" ] && { SAMPLE="$_f"; break; }
+done
+SAMPLE_CH="$(basename "\${SAMPLE:-config-none.yaml}" .yaml | sed 's/^config-//')"
+
+${anchor}`);
+
+// نمونهٔ پایانی از متغیر مشترک
+s = s.replace(
+  /echo "نمونه \(\$\(basename "\$\{SAMPLE:-–\}" \.yaml \| sed "s\/\^config-\/\/"\)\):"/,
+  'echo "نمونه ($SAMPLE_CH):"');
+s = s.replace(
+  /echo "اجرای تست:  \$ROOT_DIR\/test-tools\/run-tape\.sh admissionchannel"/,
+  'echo "اجرای تست:  $ROOT_DIR/test-tools/run-tape.sh $SAMPLE_CH"');
+
+fs.writeFileSync(p, s);
+console.log('  SAMPLE به بالا منتقل شد');
+NODEEOF
+  bash -n "$ROOT_DIR/scripts/fix-tape-policy.sh" || { echo "  ✗ نحو fix-tape-policy شکست"; exit 1; }
+fi
+
+# fix-tape-tls.sh همین وضع را دارد ولی SAMPLE آنجا بالا است —
+# فقط نام کانال پویا شود.
+edit scripts/fix-tape-tls.sh \
+  's|echo "اجرای تست:  \$ROOT_DIR/test-tools/run-tape.sh admissionchannel"|echo "اجرای تست:  $ROOT_DIR/test-tools/run-tape.sh $(basename "${SAMPLE:-config-admissionchannel.yaml}" .yaml \| sed "s/^config-//")"|'
+
 # ── تأیید ───────────────────────────────────────────────
 if [ "$DRY_RUN" = "1" ]; then
   log "DRY_RUN — هیچ تغییری اعمال نشد"
@@ -1661,6 +1725,8 @@ sys.exit(1 if bad else 0)
 # 🔴 پنج میدان تا حالا از این کلاس جا افتاده: counts، writable،
 # channels، antennaDep، و شمارنده‌های نوع. این بررسی همهٔ
 # میدان‌هایی را که ابزارها می‌خوانند یکجا می‌سنجد.
+# بلوک نمونهٔ Tape را check-runbook.py با اجرای واقعی می‌سنجد —
+# سومین باری که منطقی به‌خاطر escape چندلایه فایل خودش را لازم دارد.
 check "counts همهٔ میدان‌هایی که ابزارها می‌خوانند را دارد" \
       "cd '$ROOT_DIR/server' && node -e '
         const n = require(\"./bench-catalog\").catalog().counts;

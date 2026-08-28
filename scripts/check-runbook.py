@@ -23,8 +23,10 @@ check-runbook.py — اعتبارسنجی دستورهای RUNBOOK در براب
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 
 PROJECT_PATH = '/root/health-network'
 
@@ -135,6 +137,46 @@ def check_legacy_channels(root):
     return problems
 
 
+def check_tape_sample(root):
+    """بلوک نمونهٔ پایانی fix-tape-policy.sh باید واقعاً نام کانال
+    چاپ کند.
+
+    یک بار `SAMPLE` داخل شاخهٔ `majority` تعریف شده بود و در بلوک
+    پایانی خوانده می‌شد — در حالت پیش‌فرض `any` خالی بود، پس
+    خروجی «نمونه ():» می‌شد. چون `${SAMPLE:-}` نوشته شده بود،
+    `set -u` هم نگرفتش.
+
+    گشت متنی این را نمی‌گیرد؛ فقط اجرای واقعی. پس اسکریپت را در
+    یک پوشهٔ موقت با کانفیگ ساختگی اجرا می‌کنیم.
+    """
+    script = os.path.join(root, 'scripts', 'fix-tape-policy.sh')
+    if not os.path.exists(script):
+        return []
+
+    tmp = tempfile.mkdtemp()
+    try:
+        cfg = os.path.join(tmp, 'test-tools', 'tape-configs')
+        os.makedirs(cfg)
+        os.makedirs(os.path.join(tmp, 'scripts'))
+        shutil.copy(script, os.path.join(tmp, 'scripts'))
+        with open(os.path.join(cfg, 'config-admissionchannel.yaml'),
+                  'w', encoding='utf-8') as handle:
+            handle.write('channel: admissionchannel\nchaincode: X\n'
+                         'policyFile: /x.rego\n')
+        out = subprocess.run(
+            ['bash', 'fix-tape-policy.sh'],
+            cwd=os.path.join(tmp, 'scripts'),
+            env={**os.environ, 'ROOT_DIR': tmp},
+            capture_output=True, text=True, timeout=60).stdout
+        if 'نمونه (admissionchannel)' not in out:
+            return ['fix-tape-policy.sh: بلوک نمونه نام کانال را چاپ نمی‌کند']
+    except Exception as exc:                       # noqa: BLE001
+        return [f'fix-tape-policy.sh اجرا نشد: {exc}']
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    return []
+
+
 def main():
     root = sys.argv[1] if len(sys.argv) > 1 else os.getcwd()
     path = os.path.join(root, 'RUNBOOK.md')
@@ -147,14 +189,15 @@ def main():
 
     problems = (check_paths(text, root)
                 + check_names(text, root)
-                + check_legacy_channels(root))
+                + check_legacy_channels(root)
+                + check_tape_sample(root))
     if problems:
         for line in problems:
             print('  ✗ ' + line, file=sys.stderr)
         return 1
 
     print(f'  ✓ RUNBOOK: {len(blocks(text))} بلوک bash، همه معتبر؛ '
-          'اسکریپت‌ها بدون نام کانال 6G')
+          'اسکریپت‌ها بدون نام کانال 6G؛ نمونهٔ Tape سالم')
     return 0
 
 

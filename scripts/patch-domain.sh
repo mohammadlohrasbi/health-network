@@ -1671,6 +1671,55 @@ fi
 edit scripts/fix-tape-tls.sh \
   's|echo "اجرای تست:  \$ROOT_DIR/test-tools/run-tape.sh admissionchannel"|echo "اجرای تست:  $ROOT_DIR/test-tools/run-tape.sh $(basename "${SAMPLE:-config-admissionchannel.yaml}" .yaml \| sed "s/^config-//")"|'
 
+
+# ── ۳۲. دور بیست‌وپنجم: تأیید تعاملی نباید بلوکه کند ────
+# 🔴 اسکریپت پچ روی سرور **گیر می‌کرد** — نه خطا، نه خروج، فقط
+# انتظار بی‌پایان.
+#
+# سه بررسی، `bootstrap-secure.sh` را واقعاً اجرا می‌کنند تا ببینند
+# ترجمهٔ نام کانال کار می‌کند. در محیط ساخت داکر نیست، پس اسکریپت
+# زودتر روی «docker نصب نیست» می‌افتاد و هرگز جلوتر نمی‌رفت. روی
+# سرور که داکر هست، به `read -r -p "ادامه؟"` می‌رسید و منتظر
+# ورودی می‌ماند — و چون خروجی در `$(...)` گرفته می‌شد، حتی خودِ
+# پرسش هم دیده نمی‌شد.
+#
+# دو رفع، چون هیچ‌کدام به‌تنهایی کافی نیست:
+#  · بررسی‌ها حالا DRY_RUN=1 و </dev/null می‌دهند
+#  · خودِ read روی ترمینال غیرتعاملی دیگر بلوکه نمی‌شود
+log "دور بیست‌وپنجم: تأیید تعاملی غیربلوکه"
+
+if [ "$DRY_RUN" != "1" ] && ! grep -q 'غیرتعاملی' "$ROOT_DIR/scripts/bootstrap-secure.sh"; then
+  mkdir -p "$BK/scripts"
+  cp "$ROOT_DIR/scripts/bootstrap-secure.sh" "$BK/scripts/bootstrap-secure.tty.sh"
+  node - "$ROOT_DIR" <<'NODEEOF'
+const fs = require('fs');
+const path = require('path');
+const p = path.join(process.argv[2], 'scripts', 'bootstrap-secure.sh');
+let s = fs.readFileSync(p, 'utf8');
+
+const old = `    read -r -p "  ادامه؟ (بنویسید yes) " reply
+    [ "$reply" = "yes" ] || { echo "لغو شد."; exit 0; }`;
+if (!s.includes(old)) { console.error('  هشدار: بلوک تأیید پیدا نشد'); process.exit(0); }
+
+s = s.replace(old, `    # روی ترمینال غیرتعاملی (لوله، CI، بررسی خودکار) اصلاً
+    # نپرس — بلوکه شدن بدتر از لغو است، چون هیچ نشانه‌ای نمی‌دهد.
+    # برای اجرای بدون نظارت: CONFIRM=yes
+    if [ "\${CONFIRM:-}" = "yes" ]; then
+        reply=yes
+    elif [ ! -t 0 ]; then
+        echo "  ورودی تعاملی نیست — لغو شد. برای ادامه: CONFIRM=yes"
+        exit 0
+    else
+        read -r -p "  ادامه؟ (بنویسید yes) " reply
+    fi
+    [ "\${reply:-}" = "yes" ] || { echo "لغو شد."; exit 0; }`);
+
+fs.writeFileSync(p, s);
+console.log('  تأیید تعاملی غیربلوکه شد');
+NODEEOF
+  bash -n "$ROOT_DIR/scripts/bootstrap-secure.sh" || { echo "  ✗ نحو bootstrap شکست"; exit 1; }
+fi
+
 # ── تأیید ───────────────────────────────────────────────
 if [ "$DRY_RUN" = "1" ]; then
   log "DRY_RUN — هیچ تغییری اعمال نشد"
@@ -1832,17 +1881,23 @@ if bad:
     sys.exit(1)
 \""
 check "کانال شاهد خودکار اضافه می‌شود" \
-      "cd '$ROOT_DIR/scripts' && out=\$(ROOT_DIR='$ROOT_DIR' CHANNELS=datachannel bash bootstrap-secure.sh 2>&1) ; \
+      "cd '$ROOT_DIR/scripts' && out=\$(DRY_RUN=1 ROOT_DIR='$ROOT_DIR' CHANNELS=datachannel bash bootstrap-secure.sh </dev/null 2>&1) ; \
        echo \"\$out\" | grep -q 'کانال شاهد' \
        && echo \"\$out\" | grep -q 'admissionchannel auditchannel'"
 check "کانال شاهد قابل خاموش کردن است" \
-      "cd '$ROOT_DIR/scripts' && out=\$(ROOT_DIR='$ROOT_DIR' WITH_CONTROL=0 CHANNELS=datachannel bash bootstrap-secure.sh 2>&1) ; \
+      "cd '$ROOT_DIR/scripts' && out=\$(DRY_RUN=1 ROOT_DIR='$ROOT_DIR' WITH_CONTROL=0 CHANNELS=datachannel bash bootstrap-secure.sh </dev/null 2>&1) ; \
        ! echo \"\$out\" | grep -q 'auditchannel'"
+# 🔴 هیچ بررسی‌ای نباید منتظر ورودی بماند. یک بار اسکریپت پچ روی
+# سرور بی‌صدا گیر کرد چون bootstrap به پرسش تأیید رسید.
+check "bootstrap روی ترمینال غیرتعاملی بلوکه نمی‌شود" \
+      "cd '$ROOT_DIR/scripts' && timeout 20 bash -c '
+         ROOT_DIR=\"$ROOT_DIR\" CHANNELS=admissionchannel bash bootstrap-secure.sh </dev/null >/dev/null 2>&1
+         [ \$? -ne 124 ]'"
 check "نام کانال 6G ترجمه می‌شود نه رد" \
-      "cd '$ROOT_DIR/scripts' && out=\$(ROOT_DIR='$ROOT_DIR' CHANNELS=datachannel bash bootstrap-secure.sh 2>&1) ; \
+      "cd '$ROOT_DIR/scripts' && out=\$(DRY_RUN=1 ROOT_DIR='$ROOT_DIR' CHANNELS=datachannel bash bootstrap-secure.sh </dev/null 2>&1) ; \
        echo \"\$out\" | grep -q 'نام پروژه 6G است' && echo \"\$out\" | grep -q 'admissionchannel'"
 check "bootstrap کانال نامعتبر را پیش از پاک‌سازی می‌گیرد" \
-      "cd '$ROOT_DIR/scripts' && out=\$(ROOT_DIR='$ROOT_DIR' CHANNELS=totally-bogus bash bootstrap-secure.sh 2>&1) ; \
+      "cd '$ROOT_DIR/scripts' && out=\$(DRY_RUN=1 ROOT_DIR='$ROOT_DIR' CHANNELS=totally-bogus bash bootstrap-secure.sh </dev/null 2>&1) ; \
        echo \"\$out\" | grep -q 'کانال ناشناخته' && ! echo \"\$out\" | grep -qE 'پاک‌سازی|ادامه؟'"
 # 🔴 این بررسی کل کلاس را می‌گیرد: هر جزئی که مسیر chaincode را
 # می‌داند باید همان مسیر را بگوید. ناهمخوانی مولد و زیرساخت تا

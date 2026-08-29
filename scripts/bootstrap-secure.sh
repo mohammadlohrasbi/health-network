@@ -135,8 +135,18 @@ if [ "$DRY_RUN" != "1" ] && [ "$SKIP_NETWORK" != "1" ]; then
     echo ""
     warn "این کار شبکه فعلی و کل دفتر را پاک می‌کند."
     warn "نتایج بنچمارک در test-tools/bench-runs دست‌نخورده می‌مانند."
-    read -r -p "  ادامه؟ (بنویسید yes) " reply
-    [ "$reply" = "yes" ] || { echo "لغو شد."; exit 0; }
+    # روی ترمینال غیرتعاملی (لوله، CI، بررسی خودکار) اصلاً
+    # نپرس — بلوکه شدن بدتر از لغو است، چون هیچ نشانه‌ای نمی‌دهد.
+    # برای اجرای بدون نظارت: CONFIRM=yes
+    if [ "${CONFIRM:-}" = "yes" ]; then
+        reply=yes
+    elif [ ! -t 0 ]; then
+        echo "  ورودی تعاملی نیست — لغو شد. برای ادامه: CONFIRM=yes"
+        exit 0
+    else
+        read -r -p "  ادامه؟ (بنویسید yes) " reply
+    fi
+    [ "${reply:-}" = "yes" ] || { echo "لغو شد."; exit 0; }
 fi
 
 cd "$SCRIPTS" || die "به $SCRIPTS نمی‌رود"
